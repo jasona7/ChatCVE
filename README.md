@@ -106,7 +106,7 @@ libc-bin|2.31-13+deb11u3||deb|CVE-2010-4756|Negligible|public.ecr.aws/tanzu_obse
 
 4. Start the Chat-CVE session:
 ```bash
-python chatCVE.py
+python chat_cve.py
 ```
 
 5. Query at the prompt:
