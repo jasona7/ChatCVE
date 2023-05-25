@@ -162,9 +162,9 @@ Final Answer: The name with the most Critical Severity records is 'curl' with 42
 ```
 
 
-
 ## 🤝 Contributing
-We welcome your feedback! 🙌 For significant changes, please open an issue first to discuss what you'd like to improve.
+We welcome your feedback! 🙌 
+For significant changes, please open an issue first to discuss what you'd like to improve.
 
 ## 📃 License
 Our project is licensed under the [MIT License](https://choosealicense.com/licenses/mit/).
