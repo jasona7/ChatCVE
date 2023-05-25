@@ -131,7 +131,7 @@ Final Answer: The top 3 Names in the app_patrol table sorted by the top count of
 - **Compliance Teams**: Maintain documentation and track usage for attestation efforts, ensuring all known libraries are documented.  Non technical personnel can simply use human langauge.
 - **Development Teams**: Efficiently target underlying libraries and get access to remediation suggestions.
 
-## 🤝 Example prompts
+## 🤝 Example prompt queries and results
 ```bash
 What percentage of records are for curl in the app_patrol table?
 
