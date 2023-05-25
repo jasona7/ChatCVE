@@ -78,12 +78,17 @@ public.ecr.aws/bitnami/jenkins:2.387.3
 
 
 ## 💻 Usage
-1. Initiate an App Patrol scan which will create SBOM records in the SQLite3 backend:
+1. Initiate a scan that will kick off the SBOM and CVE artifact creation:
+``` bash
+python scan.py
+```
+
+2. Initiate an App Patrol scan which will create SBOM records in the SQLite3 backend:
 ``` bash
 python fetch_daily_nvd_cves.py
 ```
 
-2. Check the SBOM records have been added:
+3. Check the SBOM records have been added:
 ``` bash
 sqlite3 app_patrol.db
 sqlite> SELECT * FROM app_patrol LIMIT 10;
@@ -99,12 +104,12 @@ openssl|1.1.1n-0+deb11u3||deb|CVE-2010-0928|Negligible|public.ecr.aws/tanzu_obse
 libc-bin|2.31-13+deb11u3||deb|CVE-2010-4756|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
 ```
 
-3. Start the Chat-CVE session:
+4. Start the Chat-CVE session:
 ```bash
 python chatCVE.py
 ```
 
-4. Query at the prompt:
+5. Query at the prompt:
 ```bash
 Enter a question or type 'exit' to quit: Which NAME in app_patrol table has the most CRITICAL Severity records?
 ```
