@@ -24,6 +24,10 @@ cd ChatCVE
 python3 -m venv .env
 source ./env/bin/activate
 ```
+4. Install requirements
+```bash
+pip install -r requirements.txt
+
 4. Create the app_patrol and nvd_cves databases
 ```bash
 sqlite3> CREATE TABLE app_patrol (
