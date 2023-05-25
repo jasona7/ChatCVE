@@ -1,13 +1,13 @@
 # 🌐 Chat-CVE Langchain App
 
 ## 🎯 Description
-The Chat-CVE Lang Chain App is an AI-powered devSecOps application 🔍, for oganizations triaging and aggregating CVE (Common Vulnerabilities and Exposures) information. Leveraging state-of-the-art Natural Language Processing, Chat-CVE makes cybersecurity Softwre Bill of Materials insights available to everyone because Security is everyones job.  From Security analysts to Audit and Compliance teams, ChatCSV allows a more intuitive and engaging way to extract key findings. 🤖💬
+The Chat-CVE Lang Chain App is an AI-powered devSecOps application 🔍, for oganizations triaging and aggregating CVE (Common Vulnerabilities and Exposures) information. Leveraging state-of-the-art Natural Language Processing, Chat-CVE makes cybersecurity Softwre Bill of Materials (SBOM) data available to everyone because Security is everyones job.  From Security analysts to Audit and Compliance teams, ChatCSV allows a more intuitive and engaging way to extract key findings. 🤖💬
 
 ## 🚀 Features
 - **🧠 Natural Language Queries**: Ask questions in plain English (or your preferred language)! No need to grapple with complex query languages. 
-- **🔮 AI-Powered Analysis**: Our algorithm is backed by Langchain's AI framework.  It can easily surface important vulnerability information via Human Language.  The requets are translated to SQL for querying specific system configurations and historical patterns.
-- **⏭️ Proactive Assistance**: Helps to identify potential areas of concern proactively, making auditing efforts more efficient and ensuring compliance with security standards. 
-- **🔁 Triage & Remediation**: Track remediation efforts via the National Vulnerability Database.  Can be extended to triage using other CVE advisory databases.
+- **🔮 AI-Powered Analysis**: Our app is backed by Langchain's AI framework.  It can easily surface important vulnerability information using Human Language.  The requets are translated to SQL for querying specific artifact findings.
+- **⏭️ Proactive Assistance**: Help identify potential areas of concern proactively, making auditing efforts more efficient and ensuring compliance with security standards. 
+- **🔁 Triage & Remediation**: Assist in CVE remediation using the National Vulnerability Database (NVD).  Can be extended to triage using other CVE advisory databases.
 
 ## 📲 Installation
 
@@ -17,7 +17,7 @@ git clone https://github.com/chatCVE/lang-chain-app.git
 ```
 2. Enter the project directory:
 ```bash
-cd chatCVE
+cd ChatCVE
 ```
 3. Setup a Python environment:
 ```bash
@@ -126,12 +126,12 @@ Final Answer: The top 3 Names in the app_patrol table sorted by the top count of
 
 
 ## 🌈 Software Supply Chain and Security Use Cases
-- **Security Analysts**: Triage & find detailed CVE information quickly without dealing with intricate databases.
+- **Security Analysts**: Assist Triage & find detailed CVE information quickly without dealing with intricate databases.
 - **Audit Teams**: Efficiently target auditing efforts and ensure compliance with security standards.
 - **Compliance Teams**: Maintain documentation and track usage for attestation efforts, ensuring all known libraries are documented.  Non technical personnel can simply use human langauge.
 - **Development Teams**: Efficiently target underlying libraries and get access to remediation suggestions.
 
-## 🤝 Example prompt queries and results
+## ⭐⭐ Example prompt queries and results
 ```bash
 What percentage of records are for curl in the app_patrol table?
 
