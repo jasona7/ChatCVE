@@ -1,0 +1,165 @@
+# 🌐 Chat-CVE Langchain App
+
+## 🎯 Description
+The Chat-CVE Lang Chain App is an AI-powered devSecOps application 🔍, for oganizations triaging and aggregating CVE (Common Vulnerabilities and Exposures) information. Leveraging state-of-the-art Natural Language Processing, Chat-CVE makes cybersecurity Softwre Bill of Materials insights available to everyone because Security is everyones job.  From Security analysts to Audit and Compliance teams, ChatCSV allows a more intuitive and engaging way to extract key findings. 🤖💬
+
+## 🚀 Features
+- **🧠 Natural Language Queries**: Ask questions in plain English (or your preferred language)! No need to grapple with complex query languages. 
+- **🔮 AI-Powered Analysis**: Our algorithm is backed by Langchain's AI framework.  It can easily surface important vulnerability information via Human Language.  The requets are translated to SQL for querying specific system configurations and historical patterns.
+- **⏭️ Proactive Assistance**: Helps to identify potential areas of concern proactively, making auditing efforts more efficient and ensuring compliance with security standards. 
+- **🔁 Triage & Remediation**: Track remediation efforts via the National Vulnerability Database.  Can be extended to triage using other CVE advisory databases.
+
+## 📲 Installation
+
+1. Clone this repository:
+```bash
+git clone https://github.com/chatCVE/lang-chain-app.git
+```
+2. Enter the project directory:
+```bash
+cd chatCVE
+```
+3. Setup a Python environment:
+```bash
+python3 -m venv .env
+source ./env/bin/activate
+```
+4. Create the app_patrol and nvd_cves databases
+```bash
+sqlite3> CREATE TABLE app_patrol (
+    NAME TEXT,
+    INSTALLED TEXT,
+    FIXED_IN TEXT,
+    TYPE TEXT,
+    VULNERABILITY TEXT,
+    SEVERITY TEXT,
+    IMAGE_TAG TEXT,
+     DATE_ADDED TEXT)
+
+sqlite3> CREATE TABLE nvd_cves (
+    cve_id TEXT PRIMARY KEY,
+    source_id TEXT,
+    published TEXT,
+    last_modified TEXT,
+    vuln_status TEXT,
+    description TEXT,
+    cvss_v30_vector_string TEXT,
+    cvss_v30_base_score REAL,
+    cvss_v30_base_severity TEXT,
+    cvss_v2_vector_string TEXT,
+    cvss_v2_base_score REAL,
+    cvss_v2_base_severity TEXT,
+    weakness TEXT,
+    ref_info TEXT)
+
+5. Create an images.txt file with your images to scan:
+
+public.ecr.aws/tanzu_observability_demo_app/to-demo/inventory:latest
+public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest
+public.ecr.aws/tanzu_observability_demo_app/to-demo/delivery:latest
+public.ecr.aws/tanzu_observability_demo_app/to-demo/warehouse:latest
+public.ecr.aws/tanzu_observability_demo_app/to-demo/notification:latest
+public.ecr.aws/tanzu_observability_demo_app/to-demo/styling:latest
+public.ecr.aws/tanzu_observability_demo_app/to-demo/packaging:latest
+public.ecr.aws/tanzu_observability_demo_app/to-demo/printing:latest
+public.ecr.aws/tanzu_observability_demo_app/to-demo/payments:latest
+public.ecr.aws/tanzu_observability_demo_app/to-demo/loadgen:latest
+public.ecr.aws/amazoncorretto/amazoncorretto:20-al2-jdk
+public.ecr.aws/docker/library/tomcat:9.0.75-jdk8-corretto-al2
+public.ecr.aws/bitnami/minio:2023.5.18
+public.ecr.aws/p4c2e2q6/miniamplify-x86:latest
+public.ecr.aws/xray/aws-xray-daemon:3.3.7
+public.ecr.aws/datadog/agent:7.45.0-rc.5
+public.ecr.aws/aws-ec2/aws-node-termination-handler:v1.19.0
+public.ecr.aws/aws-gcr-solutions/data-transfer-hub-ecr:v1.0.4
+public.ecr.aws/bitnami/jenkins:2.387.3
+```
+
+
+
+## 💻 Usage
+1. Initiate an App Patrol scan which will create SBOM records in the SQLite3 backend:
+``` bash
+python fetch_daily_nvd_cves.py
+```
+
+2. Check the SBOM records have been added:
+``` bash
+sqlite3 app_patrol.db
+sqlite> SELECT * FROM app_patrol LIMIT 10;
+tar|1.34+dfsg-1||deb|CVE-2005-2541|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+login|1:4.8.1-1||deb|CVE-2007-5686|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+passwd|1:4.8.1-1||deb|CVE-2007-5686|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+libssl1.1|1.1.1n-0+deb11u3||deb|CVE-2007-6755|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+openssl|1.1.1n-0+deb11u3||deb|CVE-2007-6755|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+jetty-setuid-java|1.0.4||java-archive|CVE-2009-5045|High|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+jetty-setuid-java|1.0.4||java-archive|CVE-2009-5046|Medium|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+libssl1.1|1.1.1n-0+deb11u3||deb|CVE-2010-0928|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+openssl|1.1.1n-0+deb11u3||deb|CVE-2010-0928|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+libc-bin|2.31-13+deb11u3||deb|CVE-2010-4756|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+```
+
+3. Start the Chat-CVE session:
+```bash
+python chatCVE.py
+```
+
+4. Query at the prompt:
+```bash
+Enter a question or type 'exit' to quit: Which NAME in app_patrol table has the most CRITICAL Severity records?
+```
+    Expected Output:
+```bash
+** Thought: I should query the app_patrol table to get the name with the most Critical CVEs. **
+Thought: I should execute the query to get the results.
+Action: query_sql_db
+Action Input: SELECT NAME, COUNT(*) AS Top FROM app_patrol WHERE SEVERITY = 'Critical' GROUP BY NAME ORDER BY Top DESC LIMIT 3
+Observation: [('curl', 42), ('libcurl4', 42), ('libpcre2-8-0', 16)]
+Thought: I now know the final answer.
+Final Answer: The top 3 Names in the app_patrol table sorted by the top count of critical in the severity column are 'curl', 'libcurl4', and 'libpcre2-8-0'.
+```
+
+
+## 🌈 Software Supply Chain and Security Use Cases
+- **Security Analysts**: Triage & find detailed CVE information quickly without dealing with intricate databases.
+- **Audit Teams**: Efficiently target auditing efforts and ensure compliance with security standards.
+- **Compliance Teams**: Maintain documentation and track usage for attestation efforts, ensuring all known libraries are documented.  Non technical personnel can simply use human langauge.
+- **Development Teams**: Efficiently target underlying libraries and get access to remediation suggestions.
+
+## 🤝 Example prompts
+```bash
+What percentage of records are for curl in the app_patrol table?
+
+Thought: I should query the app_patrol table to get the percentage of records for curl.
+Action: query_sql_db
+Action Input: SELECT COUNT(*) * 100.0 / (SELECT COUNT(*) FROM app_patrol) FROM app_patrol WHERE NAME = 'curl'
+Observation: [(6.006697362913353,)]
+Thought: I now know the final answer.
+Final Answer: 6.006697362913353% of records in the app_patrol table are for curl.
+
+How many critical records are there in the app_patrol table?
+
+Thought: I should query the app_patrol table for the number of critical records.
+Action: query_sql_db
+Action Input: SELECT COUNT(*) FROM app_patrol WHERE SEVERITY = 'Critical'
+Observation: [(246,)]
+Thought: I now know the final answer.
+Final Answer: There are 246 critical records in the app_patrol table.
+
+Which name in the app_patrol table has the most Critical Severity records?
+
+Thought: I should query the app_patrol table to find the name with the most Critical Severity records.
+Action: query_sql_db
+Action Input: SELECT NAME, COUNT(*) AS count FROM app_patrol WHERE SEVERITY = 'Critical' GROUP BY NAME ORDER BY count DESC LIMIT 10;
+Observation: [('curl', 42), ('libcurl4', 42), ('libpcre2-8-0', 16), ('libksba8', 15), ('jetty-setuid-java', 14), ('libdb5.3', 9), ('libtasn1-6', 9), ('zlib1g', 8), ('System.Drawing.Common', 7), ('libexpat1', 7)]
+Thought: I now know the final answer.
+Final Answer: The name with the most Critical Severity records is 'curl' with 42 records.
+```
+
+
+
+## 🤝 Contributing
+We welcome your feedback! 🙌 For significant changes, please open an issue first to discuss what you'd like to improve.
+
+## 📃 License
+Our project is licensed under the [MIT License](https://choosealicense.com/licenses/mit/).
