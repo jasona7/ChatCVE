@@ -20,6 +20,7 @@ VERSION
 .tmp/
 coverage.txt
 bin/
+.env
 
 # Binaries for programs and plugins
 *.exe
