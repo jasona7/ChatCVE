@@ -43,7 +43,7 @@ sqlite3> CREATE TABLE app_patrol (
     VULNERABILITY TEXT,
     SEVERITY TEXT,
     IMAGE_TAG TEXT,
-     DATE_ADDED TEXT)
+     DATE_ADDED TEXT);
 
 sqlite3> CREATE TABLE nvd_cves (
     cve_id TEXT PRIMARY KEY,
@@ -59,7 +59,7 @@ sqlite3> CREATE TABLE nvd_cves (
     cvss_v2_base_score REAL,
     cvss_v2_base_severity TEXT,
     weakness TEXT,
-    ref_info TEXT)
+    ref_info TEXT);
 
 5. Create an images.txt file with your images to scan:
 
