@@ -24,11 +24,16 @@ cd ChatCVE
 python3 -m venv .env
 source ./env/bin/activate
 ```
-4. Install requirements
+4. Install Grype and Syft
+```bash
+pip install syft
+curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+```
+5. Install requirements
 ```bash
 pip install -r requirements.txt
-
-4. Create the app_patrol and nvd_cves databases
+```
+6. Create the app_patrol and nvd_cves databases
 ```bash
 sqlite3> CREATE TABLE app_patrol (
     NAME TEXT,
