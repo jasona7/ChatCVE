@@ -1,7 +1,7 @@
-# 🌐 Chat-CVE Langchain App
+# 🌐 ChatCVE Langchain App
 
 ## 🎯 Description
-The Chat-CVE Lang Chain App is an AI-powered devSecOps application 🔍, for oganizations triaging and aggregating CVE (Common Vulnerabilities and Exposures) information. Leveraging state-of-the-art Natural Language Processing, Chat-CVE makes cybersecurity Softwre Bill of Materials (SBOM) data available to everyone because Security is everyones job.  From Security analysts to Audit and Compliance teams, ChatCSV allows a more intuitive and engaging way to extract key findings. 🤖💬
+The ChatCVE Lang Chain App is an AI-powered devSecOps application 🔍, for oganizations triaging and aggregating CVE (Common Vulnerabilities and Exposures) information. Leveraging state-of-the-art Natural Language Processing, ChatCVE makes cybersecurity Softwre Bill of Materials (SBOM) data available to everyone because Security is everyones job.  From Security analysts to Audit and Compliance teams, ChatCVE allows a more intuitive and engaging way to extract key findings. 🤖💬
 
 ## 🚀 Features
 - **🧠 Natural Language Queries**: Ask questions in plain English (or your preferred language)! No need to grapple with complex query languages. 
