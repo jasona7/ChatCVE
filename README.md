@@ -6,8 +6,8 @@ The ChatCVE Lang Chain App is an AI-powered devSecOps application 🔍, for ogan
 ## 🚀 Features
 - **🧠 Natural Language Queries**: Ask questions in plain English (or your preferred language)! No need to grapple with complex query languages. 
 - **🔮 AI-Powered Analysis**: Our app is backed by Langchain's AI framework.  It can easily surface important vulnerability information using Human Language.  The requets are translated to SQL for querying specific artifact findings.
-- **⏭️ Proactive Assistance**: Help identify potential areas of concern proactively, making auditing efforts more efficient and ensuring compliance with security standards. 
-- **🔁 Triage & Remediation**: Assist in CVE remediation using the National Vulnerability Database (NVD).  Can be extended to triage using other CVE advisory databases.
+- **⏭️ Proactive Assistance**: Anyone can identify potential concerns proactively to improve the overall Cyber Wecurity Posture.
+- **🔁 Triage & Remediation**: Assist in Vulnerability remediation using the National Vulnerability Database (NVD).  Can be extended to triage using other CVE advisory databases.
 
 ## 📲 Installation
 
