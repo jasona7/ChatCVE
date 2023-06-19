@@ -7,7 +7,7 @@ from langchain.agents import AgentExecutor
 
 # Create a SQLDatabaseToolkit connection to the App_Patrol Database
 
-db = SQLDatabase.from_uri("sqlite:////home/ec2-user/syft/app_patrol.db")
+db = SQLDatabase.from_uri("sqlite:////home/ec2-user/srtool/app_patrol.db")
 toolkit = SQLDatabaseToolkit(db=db)
 
 agent_executor = create_sql_agent(

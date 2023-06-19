@@ -4,6 +4,9 @@ import json
 import sqlite3
 from datetime import datetime, timedelta
 
+# Start time
+start_time = datetime.now()
+
 # Get current UTC time and 24 hours earlier
 now = datetime.utcnow()
 one_day_ago = now - timedelta(days=1)
@@ -25,16 +28,21 @@ response = urllib.request.urlopen(url)
 data = json.loads(response.read().decode())
 
 # Open a connection to the SQLite database and create a cursor object
-#conn = sqlite3.connect('app_patrol.db')
 conn = sqlite3.connect('/home/ec2-user/ChatCVE/app_patrol.db')
-
 cursor = conn.cursor()
+
+count = 0
+severity_count = {}
 
 # For each CVE in the response, insert the data into the nvd_cves table
 for vuln in data['vulnerabilities']:
+    count += 1
     cve = vuln['cve']
     metric_v3 = cve['metrics']['cvssMetricV30'][0]['cvssData'] if cve['metrics'].get('cvssMetricV30') else {}
     metric_v2 = cve['metrics']['cvssMetricV2'][0]['cvssData'] if cve['metrics'].get('cvssMetricV2') else {}
+
+    severity = metric_v3.get('baseSeverity', 'N/A')
+    severity_count[severity] = severity_count.get(severity, 0) + 1
 
     cursor.execute("""
     INSERT OR REPLACE INTO nvd_cves
@@ -62,3 +70,20 @@ for vuln in data['vulnerabilities']:
 # Commit the changes and close the connection
 conn.commit()
 conn.close()
+
+# End time
+end_time = datetime.now()
+
+# Calculate execution time
+execution_time = end_time - start_time
+
+# Write summary to log file
+log_dir = '/home/ec2-user/ChatCVE/logs/'
+log_filename = now.strftime("%Y-%m-%d_%H_%M_%S_fetch_summary.log").replace(':', '_').replace('/', '_')
+with open(log_dir + log_filename, 'w') as f:
+    f.write(f"Script execution summary:\n")
+    f.write(f"Records created or updated: {count}\n")
+    f.write(f"Execution time: {execution_time}\n")
+    f.write(f"Severity count:\n")
+    for severity, count in severity_count.items():
+        f.write(f"{severity}: {count}\n")

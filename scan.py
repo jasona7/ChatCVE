@@ -53,9 +53,21 @@ for image in images:
     result = syft_scan(image)
     if result is None:
         continue
+    # Get current date and time
+    now = datetime.datetime.now()
+
+    # Format it as a string
+    #formatted_now = now.strftime("%Y-%m-%d_%H-%M-%S")
+    formatted_now = now.strftime("%Y-%m-%d")
+
+    # Create the scan_output_dir variable
+    scan_output_rootdir = '/home/ec2-user/ChatCVE/output/sbom/'
+    scan_output_subdir = formatted_now.replace(":", "_").replace("/", "_")
+    # Make directory if it does not exist
+    os.makedirs(scan_output_rootdir + scan_output_subdir, exist_ok=True)
     filename = image.replace('/', '_').replace(':', '__') + '.json'
     try:
-        with open(filename, 'w') as f:
+        with open(scan_output_rootdir + '/' + scan_output_subdir + '/' + filename, 'w') as f:
             json.dump(result, f)
             successful_scans += 1
     except IOError:
