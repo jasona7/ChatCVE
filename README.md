@@ -1,12 +1,12 @@
 # 🌐 ChatCVE Langchain App
 
 ## 🎯 Description
-The ChatCVE Lang Chain App is an AI-powered devSecOps application 🔍, for oganizations triaging and aggregating CVE (Common Vulnerabilities and Exposures) information. Leveraging state-of-the-art Natural Language Processing, ChatCVE makes cybersecurity Softwre Bill of Materials (SBOM) data available to everyone because Security is everyones job.  From Security analysts to Audit and Compliance teams, ChatCVE allows a more intuitive and engaging way to extract key findings. 🤖💬
+The ChatCVE Lang Chain App is an AI-powered devSecOps application 🔍, for organizations triaging and aggregating CVE (Common Vulnerabilities and Exposures) information. Leveraging state-of-the-art Natural Language Processing, ChatCVE makes cybersecurity Software Bill of Materials (SBOM) data available to everyone because Security is everyone's job.  From Security analysts to Audit and Compliance teams, ChatCVE allows a more intuitive and engaging way to extract key findings. 🤖💬
 
 ## 🚀 Features
 - **🧠 Natural Language Queries**: Ask questions in plain English (or your preferred language)! No need to grapple with complex query languages. 
-- **🔮 AI-Powered Analysis**: Our app is backed by Langchain's AI framework.  It can easily surface important vulnerability information using Human Language.  The requets are translated to SQL for querying specific artifact findings.
-- **⏭️ Proactive Assistance**: Anyone can identify potential concerns proactively to improve the overall Cyber Wecurity Posture.
+- **🔮 AI-Powered Analysis**: Our app is backed by Langchain's AI framework.  It can easily surface important vulnerability information using Human Language.  The requests are translated to SQL for querying specific artifact findings.
+- **⏭️ Proactive Assistance**: Anyone can identify potential concerns proactively to improve the overall Cyber Security Posture.
 - **🔁 Triage & Remediation**: Assist in Vulnerability remediation using the National Vulnerability Database (NVD).  Can be extended to triage using other CVE advisory databases.
 
 ## 📲 Installation
