@@ -61,7 +61,7 @@ sqlite3> CREATE TABLE nvd_cves (
     weakness TEXT,
     ref_info TEXT);
 
-5. Create an images.txt file with your images to scan:
+5. Create an images.txt file with your images to scan.  Include the registry, repo, and version tag:
 
 public.ecr.aws/tanzu_observability_demo_app/to-demo/inventory:latest
 public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest
