@@ -1,0 +1,10 @@
+
+name: CVS Security Scan
+on: [push]
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run Security Scan
+      uses: github/codeql-action/analyze@v1
