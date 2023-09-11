@@ -1,4 +1,4 @@
-# 🌐 ChatCVE Langchain App
+# 🌐 ChatCVE Langchain App 
 
 ## 🎯 Description
 The ChatCVE Lang Chain App is an AI-powered devSecOps application 🔍, for organizations triaging and aggregating CVE (Common Vulnerabilities and Exposures) information. Leveraging state-of-the-art Natural Language Processing, ChatCVE makes cybersecurity Software Bill of Materials (SBOM) data available to everyone because Security is everyone's job.  From Security analysts to Audit and Compliance teams, ChatCVE allows a more intuitive and engaging way to extract key findings. 🤖💬
@@ -173,7 +173,7 @@ Final Answer: The name with the most Critical Severity records is 'curl' with 42
 
 ## 🤝 Contributing
 We welcome your feedback! 🙌 
-For significant changes, please open an issue first to discuss what you'd like to improve.
+For all significant changes, please open an issue first to discuss what you'd like to improve.
 
 ## 📃 License
 Our project is licensed under the [MIT License](https://choosealicense.com/licenses/mit/).
