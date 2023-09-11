@@ -1,10 +1,16 @@
-
 name: CVS Security Scan
 on: [push]
 jobs:
   security-scan:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout repository
+      uses: actions/checkout@v3  # Use the latest version of checkout action
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v2  # Use the latest version of CodeQL init action
+      with:
+        languages: "auto"  # Automatically detect languages in the repo
+
     - name: Run Security Scan
-      uses: github/codeql-action/analyze@v1
+      uses: github/codeql-action/analyze@v2  # Use the latest version of CodeQL analyze action
