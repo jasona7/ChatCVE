@@ -10,11 +10,19 @@ jobs:
   pyre:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      # Checkout the code into the runner
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-      - name: Run Pyre Action
-        # update with the desired version of the action (e.g. `facebook/pyre-action@v0.0.1`)
-        uses: facebook/pyre-action
+      # Setup Python environment
+      - name: Set up Python
+        uses: actions/setup-python@v2
         with:
-            repo-directory: './'
-            requirements-path: 'requirements.txt'
+          python-version: '3.x'
+
+      # Run Pyre Action
+      - name: Run Pyre Action
+        uses: facebook/pyre-action@master  # Update with the desired version or branch
+        with:
+          repo-directory: './'
+          requirements-path: 'requirements.txt'
