@@ -11,6 +11,7 @@ jobs:
       uses: github/codeql-action/init@v2  # Use the latest version of CodeQL init action
       with:
         languages: "auto"  # Automatically detect languages in the repo
+        token: ${{ secrets.YOUR_PERSONAL_ACCESS_TOKEN }}
 
     - name: Run Security Scan
       uses: github/codeql-action/analyze@v2  # Use the latest version of CodeQL analyze action
