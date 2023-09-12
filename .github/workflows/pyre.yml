@@ -22,7 +22,7 @@ jobs:
 
       # Run Pyre Action
       - name: Run Pyre Action
-        uses: facebook/pyre-action@main  # Update with the desired version or branch
+        uses: facebook/pyre-action@v.0.0.1  # Update with the desired version or branch
         with:
           repo-directory: './'
           requirements-path: 'requirements.txt'
