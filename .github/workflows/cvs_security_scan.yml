@@ -10,7 +10,7 @@ jobs:
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v2  # Use the latest version of CodeQL init action
       with:
-        languages: "auto"  # Automatically detect languages in the repo
+        languages: "python"  # Automatically detect languages in the repo
         token: ${{ secrets.PAT_TOKEN }}
 
     - name: Run Security Scan
