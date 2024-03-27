@@ -1,29 +1,30 @@
-from langchain.agents import create_sql_agent
-from langchain.agents.agent_toolkits import SQLDatabaseToolkit
 from langchain.sql_database import SQLDatabase
 from langchain.llms.openai import OpenAI
-from langchain.agents import AgentExecutor
+from langchain.agents import create_sql_agent, AgentExecutor
+from langchain_community.agent_toolkits import SQLDatabaseToolkit
+import os
 
+# Initialize your LLM (Language Learning Model) with OpenAI api key environment variable named openai_api_key
+
+llm = OpenAI(openai_api_key=os.environ.get("OPENAI_API_KEY"))
 
 # Create a SQLDatabaseToolkit connection to the App_Patrol Database
-
-db = SQLDatabase.from_uri("sqlite:////home/ec2-user/srtool/app_patrol.db")
-toolkit = SQLDatabaseToolkit(db=db)
+db = SQLDatabase.from_uri("sqlite:////home/jalloway/ChatCVE/app_patrol.db")
+toolkit = SQLDatabaseToolkit(db=db, llm=llm)  # Now passing both db and llm to SQLDatabaseToolkit
 
 agent_executor = create_sql_agent(
-    llm=OpenAI(temperature=0),
+    llm=llm,
     toolkit=toolkit,
     verbose=True
 )
 
-#agent_executor.run("Describe nvd_cves table with a helpful summary abou the Severity column.")
-#Take user input frrom the command line and run the agent on it
+#Take user input from the command line and run the agent on it
 while True:
-    gaurdrails = ("Do not use sql LIMIT in the results. ")
-    user_input = gaurdrails + input("Enter a question or type 'exit' to quit: ")
+    guardrails = "Do not use sql LIMIT in the results. "
+    user_input = input("Enter a question or type 'exit' to quit: ")
     if user_input.lower() == 'exit':
         break
-
-    agent_executor.run(user_input)
-
-
+    
+    # Prepending guardrails to user_input before running
+    safe_user_input = guardrails + user_input
+    agent_executor.run(safe_user_input)

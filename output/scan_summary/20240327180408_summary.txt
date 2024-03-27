@@ -1,0 +1,4 @@
+Scanned 2 images
+Results stored in 2 files
+Total number of images scanned: 2
+Total execution time: 0:00:04.977551
