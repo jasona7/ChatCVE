@@ -8,22 +8,18 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
-
     - name: Set up Python 3.8
       uses: actions/setup-python@v2
       with:
         python-version: 3.8
-
-    # Example step for installing syft - adjust based on actual installation instructions
-    - name: Install syft
-      run: |
-        curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-
-    - name: Install dependencies
+    - name: Install Python dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-
+        pip install syft  # Install syft as a Python package
+    - name: Install Grype
+      run: |
+        curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
     - name: Run tests
       run: |
         python -m unittest discover -s tests
