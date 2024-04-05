@@ -8,7 +8,7 @@ import os
 
 llm = OpenAI(openai_api_key=os.environ.get("OPENAI_API_KEY"))
 
-# Create a SQLDatabaseToolkit connection to the App_Patrol Database
+# Define the SQLDatabaseToolkit connection to the App_Patrol Database
 db = SQLDatabase.from_uri("sqlite:////home/jalloway/ChatCVE/app_patrol.db")
 toolkit = SQLDatabaseToolkit(db=db, llm=llm)  # Now passing both db and llm to SQLDatabaseToolkit
 
