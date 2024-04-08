@@ -88,7 +88,7 @@ end_time = datetime.now()
 execution_time = end_time - start_time
 
 # Write summary to log file
-log_dir = '/home/jalloway/ChatCVE/logs/'
+log_dir = '/ChatCVE/logs/'
 log_filename = now.strftime("%Y-%m-%d_%H_%M_%S_fetch_summary.log").replace(':', '_').replace('/', '_')
 with open(log_dir + log_filename, 'w') as f:
     f.write(f"Script execution summary:\n")

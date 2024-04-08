@@ -13,7 +13,7 @@ app = Flask(__name__)
 llm = OpenAI(openai_api_key=os.environ.get("OPENAI_API_KEY"))
 
 # Define the SQLDatabaseToolkit connection
-db = SQLDatabase.from_uri("sqlite:////home/jalloway/ChatCVE/app_patrol.db")
+db = SQLDatabase.from_uri("sqlite:////ChatCVE/app_patrol.db")
 toolkit = SQLDatabaseToolkit(db=db, llm=llm)
 
 agent_executor = create_sql_agent(llm=llm, toolkit=toolkit, verbose=True)
