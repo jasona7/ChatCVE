@@ -8,7 +8,7 @@ The ChatCVE Lang Chain App is an AI powered DevSecOps application 🔍, to help 
 - **🔮 AI-Powered Analysis**: Our app is backed by the Langchain AI framework.  It can easily surface important vulnerability information using Human Language.  The requests are automatically translated to [SQL](https://python.langchain.com/docs/integrations/toolkits/sql_database) for querying specific artifact findings.
 - **⏭️ Proactive Assistance**: Anyone can identify potential concerns proactively to improve the overall Cyber Security Posture.
 - **🔁 Triage & Remediation**: Assist in Vulnerability remediation using National Vulnerability Database (NVD), Syft, and Grype wrappers.  Can be extended to triage using other CVE advisory databases.
-- **🔁 UI/UX**: Simple Natural Language Processing command input and on-screen history log.
+- **🖥️ UI/UX**: Simple Natural Language Processing command input and on-screen history log.
 
 ## 📲 Installation
 
@@ -117,7 +117,7 @@ libc-bin|2.31-13+deb11u3||deb|CVE-2010-4756|Negligible|public.ecr.aws/tanzu_obse
 
 4. Start a Chat-CVE OpenAI SQL Agent session (localhost:5000):
 
-NOTE: Refine gaurdrails, temperate, etc to improve accuracy and output.
+NOTE: Refine guardrails, temperature, etc to improve accuracy and output.
 ```bash
 python frontend/app.py
 ```
