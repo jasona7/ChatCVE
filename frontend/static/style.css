@@ -1,0 +1,178 @@
+/* Use Google Fonts for better typography */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
+
+/* Basic reset */
+* {
+    box-sizing: border-box;
+    margin: 10px;
+    padding: 0;
+}
+
+body {
+    font-family: 'Roboto', sans-serif;
+    background-color: #f4f4f4;
+    line-height: 1.6;
+    padding: 20px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background: #fff;
+    box-shadow: 0 3px 7px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+.question-form input[type="text"] {
+    width: 70%;
+    padding: 10px;
+    margin-right: 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.question-form input[type="submit"] {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    background: #007bff;
+    color: #fff;
+    cursor: pointer;
+}
+
+.question-form input[type="submit"]:hover {
+    background: #0056b3;
+}
+
+.question-input {
+    width: 100%; /* Make the input stretch to the full width of its container */
+    padding: 15px; /* Increase padding for larger touch area and better visibility */
+    font-size: 1.25rem; /* Increase font size for better readability */
+    margin-bottom: 10px; /* Add some space below the input field */
+    border: 2px solid #007bff; /* Add a border that stands out */
+    border-radius: 4px; /* Slightly rounded corners for a modern look */
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1); /* Subtle inner shadow for depth */
+}
+
+.submit-btn {
+    padding: 15px 30px; /* Larger padding */
+    font-size: 1.25rem; /* Increase font size to match the input field */
+    text-transform: uppercase; /* Optional: uppercase text for the button */
+    letter-spacing: 1px; /* Optional: spacing out letters a bit */
+    border-radius: 4px; /* Match the border radius of the input */
+    border: 2px solid transparent; /* Hide border */
+    background-color: #007bff; /* Button color */
+    color: white; /* Text color */
+    cursor: pointer; /* Cursor to indicate it's clickable */
+    transition: background-color 0.3s ease; /* Smooth transition for hover effect */
+}
+
+.submit-btn:hover {
+    background-color: #0056b3; /* Darker shade when hovered */
+}
+
+.history {
+    list-style-type: none;
+    margin-top: 2rem;
+}
+
+.history-item {
+    background-color: #f9f9f9;
+    border-left: 5px solid #007bff;
+    margin-bottom: 10px;
+    padding: 10px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        width: 95%; /* Slight padding from the edges on smaller screens */
+    }
+
+    .question-form {
+        flex-direction: column; /* Stack input and button on top of each other */
+    }
+
+    .submit-btn {
+        width: 100%; /* Full width button on smaller screens */
+        margin-top: 10px; /* Add space between input and button */
+    }
+
+    .history-table {
+        width: 100%; /* Full width table */
+        border-collapse: collapse; /* Collapse borders */
+    }
+    
+    .history-item {
+        background-color: #f9f9f9; /* Light grey background for each row */
+        border-bottom: 1px solid #e1e1e1; /* Separator for rows */
+    }
+    
+    .history-item:last-child {
+        border-bottom: none; /* No border for the last row */
+    }
+    
+    /* Remove width and margin from .question and .answer to let flex handle the sizing */
+.question,
+.answer {
+    padding: 10px; /* Spacing inside cells */
+    /* width: flex; This line is commented out because 'flex' is not a valid value for width */
+    font-weight: bold; /* Make question text bold */
+    /* margin-left: 15px; */
+    /* margin-right: 15px; */
+    /* margin-top: 8px; */
+}
+
+/* Add display flex to .history-item to allow flexible space distribution between question and answer */
+.history-item {
+    display: flex;
+    align-items: flex-start; /* Align children to the start of the cross axis */
+    background-color: #f9f9f9;
+    border-left: 5px solid #007bff;
+    margin-bottom: 10px;
+    padding: 10px;
+}
+
+/* Ensure that the direct children of .history-item (typically divs for Q and A) take full width if needed */
+.history-item > div {
+    flex: 1; /* Grow to use the available space */
+    margin-bottom: 0.5rem; /* Space between question and answer */
+}
+
+/* Align the content of the Q and A containers at the start */
+.history-item .question, 
+.history-item .answer {
+    align-self: flex-start;
+    width: 100%; /* Ensure each takes full width of the flex container */
+}
+
+
+.question {
+    flex: 1 100%; /* Allow question to grow and ensure it takes full width on wrap */
+    font-weight: bold; /* Make question text bold */
+    margin-bottom: 0.5rem; /* Add some space below the question */
+}
+
+.answer {
+    flex: 3 100%; /* Allow answer to take the remaining space and full width on wrap */
+    word-break: break-word; /* Ensure long words do not overflow */
+    margin-bottom: 0.5rem; /* Add some space below the answer for when they stack on small screens */
+}
+
+/* ... other styles ... */
+
+@media (max-width: 768px) {
+    .history-item {
+        flex-direction: column; /* Stack question and answer on top of each other */
+    }
+
+    .question,
+    .answer {
+        width: 100%; /* Full width for both question and answer on smaller screens */
+    }
+}

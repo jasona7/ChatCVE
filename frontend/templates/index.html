@@ -1,0 +1,36 @@
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>ChatCVE Questions</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <link href="https://fonts.googleapis.com/css?family=Roboto&display=swap" rel="stylesheet">
+        <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" rel="stylesheet">
+    </head>
+    <body>
+        <div class="container">
+            <h1>Ask a Question about the CVE Scans</h1>
+            <form method="post" class="question-form">
+                <input type="text" name="question" placeholder="Enter your question here..." class="question-input">
+                <button type="submit" class="submit-btn">Submit</button>
+            </form>
+            
+            <div class="history">
+                <h2>History</h2>
+                {% if history %}
+                    <table class="history-table">
+                        {% for q, a in history %}
+                            <tr class="history-item">
+                                <td class="question"><strong>Q:</strong> {{ q }}</td>
+                                <td class="answer"><strong>A:</strong> {{ a }}</td>
+                            </tr>
+                        {% endfor %}
+                    </table>
+                {% else %}
+                    <p>No history yet.</p>
+                {% endif %}
+            </div>
+            
+        </div>
+    </body>
+    </html>

@@ -8,6 +8,7 @@ The ChatCVE Lang Chain App is an AI powered DevSecOps application 🔍, to help 
 - **🔮 AI-Powered Analysis**: Our app is backed by the Langchain AI framework.  It can easily surface important vulnerability information using Human Language.  The requests are automatically translated to [SQL](https://python.langchain.com/docs/integrations/toolkits/sql_database) for querying specific artifact findings.
 - **⏭️ Proactive Assistance**: Anyone can identify potential concerns proactively to improve the overall Cyber Security Posture.
 - **🔁 Triage & Remediation**: Assist in Vulnerability remediation using National Vulnerability Database (NVD), Syft, and Grype wrappers.  Can be extended to triage using other CVE advisory databases.
+- **🔁 UI/UX**: Simple Natural Language Processing command input and on-screen history log.
 
 ## 📲 Installation
 
@@ -114,12 +115,17 @@ openssl|1.1.1n-0+deb11u3||deb|CVE-2010-0928|Negligible|public.ecr.aws/tanzu_obse
 libc-bin|2.31-13+deb11u3||deb|CVE-2010-4756|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
 ```
 
-4. Start the Chat-CVE session:
-```bash
-python chat_cve.py
-```
+4. Start a Chat-CVE OpenAI SQL Agent session (localhost:5000):
 
-5. Query at the prompt:
+NOTE: Refine gaurdrails, temperate, etc to improve accuracy and output.
+```bash
+python frontend/app.py
+```
+![CVE Query Interface](assets/chatcve_ui.png)
+
+NOTE: chat_cve.py will let you launch a command line session.
+
+Query at the prompt:
 ```bash
 Enter a question or type 'exit' to quit: Which NAME in app_patrol table has the most CRITICAL Severity records?
 ```
