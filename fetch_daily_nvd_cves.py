@@ -38,7 +38,7 @@ response = urllib.request.urlopen(url)
 data = json.loads(response.read().decode())
 
 # Open a connection to the SQLite database and create a cursor object
-conn = sqlite3.connect('/home/jalloway/ChatCVE/app_patrol.db')
+conn = sqlite3.connect('../app_patrol.db')
 cursor = conn.cursor()
 
 count = 0

@@ -34,7 +34,7 @@ def home():
     if request.method == 'POST':
         user_input = request.form.get('question')
         if user_input:
-            guardrails = "Do not use sql LIMIT in the results.  Only output the query results.  Try to make output formatted for human readability if long. "
+            guardrails = "Do not use sql LIMIT in the results.  the tables in the database are nvd_findings and also app_patrol.  Output should only be the SL query result."
             safe_user_input = guardrails + user_input
             response = agent_executor.run(safe_user_input)
 
