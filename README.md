@@ -89,7 +89,7 @@ public.ecr.aws/bitnami/jenkins:2.387.3
 
 ## 💻 Usage
 1. Initiate a scan that will kick off the SBOM and CVE artifact creation.  SBOM reports will appear in output/sbom,
-and scan summaries will apear in output/scan_summary.
+and scan summaries will appear in output/scan_summary.
 ``` bash
 python scan.py
 ```
