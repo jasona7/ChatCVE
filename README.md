@@ -14,7 +14,7 @@ The ChatCVE Lang Chain App is an AI powered DevSecOps application 🔍, to help 
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/chatCVE/lang-chain-app.git
+git clone [https://github.com/jasona7/ChatCVE.git]
 ```
 2. Enter the project directory:
 ```bash
