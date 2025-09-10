@@ -1,12 +1,114 @@
-CHANGELOG.md
-VERSION
-/test/results
+# ChatCVE Gitignore
+
+# Environment and Configuration
+.env*
+*.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# API Keys and Secrets
+*.pem
+*.key
+*.pub
+cosign.key
+cosign.pub
+security-advisory-access.*.private-key.pem
+
+# Database Files (keep structure, ignore data)
+app_patrol.db
+app_patrol.db-journal
+*.sqlite
+*.sqlite3
+*.db-journal
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.env/
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Node.js and Next.js
+node_modules/
+.next/
+.nuxt/
+out/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.turbo/
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.history/
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Temporary Files
+.tmp/
+.temp/
+*.tmp
+*.temp
+
+# Build Artifacts
 /dist
+/build
 /snapshot
 .server/
-.vscode/
-.history/
-*.fingerprint
+bin/
+
+# Coverage and Testing
+coverage.txt
+.coverage
+.nyc_output
+coverage/
+.pytest_cache/
+
+# Docker
 *.tar
 *.jar
 *.war
@@ -14,32 +116,26 @@ VERSION
 *.jpi
 *.hpi
 *.zip
-.idea/
-*.log
-.images
-.tmp/
-coverage.txt
-bin/
-.env
 
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-
-# Test binary, build with `go test -c`
+# Development and Debug Files
+debug_*.py
+test_*.py
 *.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
-
-# macOS Finder metadata
-.DS_STORE
-
 *.profile
+*.fingerprint
 
-# attestation
-cosign.key
-cosign.pub
+# Images and Media (keep examples, ignore user uploads)
+.images
+/images/
+/uploads/
+*.png
+*.jpg
+*.jpeg
+*.gif
+!screenshots/
+!docs/images/
+
+# Backup Files
+*.bak
+*.backup
+*.old

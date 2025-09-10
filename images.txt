@@ -1,2 +1,4 @@
-public.ecr.aws/xray/aws-xray-daemon:3.3.7
-public.ecr.aws/eks-distro/kubernetes-csi/node-driver-registrar:v2.8.0-eks-1-27-4
+public.ecr.aws/nginx/nginx:1.28-alpine3.21-slim
+public.ecr.aws/bitnami/aws-cli:latest
+public.ecr.aws/cloudwatch-agent/cloudwatch-agent-target-allocator:latest
+public.ecr.aws/docker/library/alpine:3.19

@@ -1,3 +1,20 @@
-langchain==0.0.146
-urllib3==1.26.15
-openai==0.27.7
+# ChatCVE Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Web Framework
+flask==2.3.3
+flask-cors==4.0.0
+
+# AI and Language Processing
+langchain==0.1.0
+langchain-openai==0.0.2
+langchain-community==0.0.10
+
+# Database and Data Processing
+sqlite3
+
+# Optional Development Dependencies
+# Uncomment for development:
+# pytest==7.4.3
+# black==23.11.0
+# flake8==6.1.0

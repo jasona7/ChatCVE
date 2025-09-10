@@ -1,186 +1,350 @@
-# 🌐 ChatCVE Langchain App 
+# ChatCVE - AI-Powered DevSecOps Vulnerability Management
 
-## 🎯 Description
-The ChatCVE Lang Chain App is an AI powered DevSecOps application 🔍, to help organizations triage and aggregate CVE (Common Vulnerabilities & Exposures) information. By leveraging state-of-the-art Natural Language Processing, ChatCVE makes detailed Software Bill of Materials (SBOM) data accessible to everyone, because Security is everyone's job.  From Security analysts to Audit and Compliance teams, ChatCVE allows a more intuitive and engaging way to extract key findings. 🤖💬
+![ChatCVE Dashboard](https://img.shields.io/badge/Status-Active-green) ![Python](https://img.shields.io/badge/Python-3.10+-blue) ![Next.js](https://img.shields.io/badge/Next.js-14-black) ![License](https://img.shields.io/badge/License-MIT-yellow)
+
+ChatCVE is a comprehensive AI-powered DevSecOps platform that helps security teams triage, analyze, and manage vulnerabilities across their infrastructure. Built with modern web technologies and powered by Langchain AI, it provides intelligent vulnerability analysis, automated scanning, and intuitive dashboards for security operations.
 
 ## 🚀 Features
-- **🧠 Natural Language Queries**: Ask questions using plain English (or your preferred language)! No need to grapple with complex query languages. 
-- **🔮 AI-Powered Analysis**: Our app is backed by the Langchain AI framework.  It can easily surface important vulnerability information using Human Language.  The requests are automatically translated to [SQL](https://python.langchain.com/docs/integrations/toolkits/sql_database) for querying specific artifact findings.
-- **⏭️ Proactive Assistance**: Anyone can identify potential concerns proactively to improve the overall Cyber Security Posture.
-- **🔁 Triage & Remediation**: Assist in Vulnerability remediation using National Vulnerability Database (NVD), Syft, and Grype wrappers.  Can be extended to triage using other CVE advisory databases.
-- **🖥️ UI/UX**: Simple Natural Language Processing command input and on-screen history log.
 
-## 📲 Installation
+### 🎯 **Core Capabilities**
+- **AI-Powered Chat Interface** - Natural language queries for vulnerability analysis with clear chat functionality
+- **Interactive Dashboard** - Real-time security metrics with auto-refresh and accurate vulnerability statistics
+- **CVE Explorer** - Searchable database with filtering and sorting
+- **Advanced Scan Management** - Container image scanning with real-time progress and live logs
+- **Database Integration** - SQLite backend with NVD and custom data sources
+- **External Integrations** - GitHub Advisory Database and NVD API support
 
-1. Clone this repository:
+### 🛡️ **Security Features**
+- **Docker-Based Scanning** - Uses Docker to pull and analyze container images
+- **SBOM Generation** - Software Bill of Materials using Syft
+- **Vulnerability Scanning** - Container and repository analysis with Grype
+- **Multi-Source Input** - Support for container images, Git repositories, and text files with image references
+- **Risk Assessment** - CVSS scoring and severity classification with intelligent security scoring
+- **Compliance Tracking** - Audit trails and historical scan data with persistent storage
+- **Bulk Operations** - Multi-scan deletion and export capabilities
+
+### 💻 **User Experience**
+- **Modern UI** - Built with Next.js, Tailwind CSS, and Shadcn UI with enhanced visual feedback
+- **Responsive Design** - Mobile-first approach with dark/light themes
+- **Smooth Animations** - Framer Motion for enhanced visual feedback
+- **Advanced Data Controls** - Filtering, sorting, pagination, and row selection with checkboxes
+- **Real-Time Updates** - Live scan progress, logs, and automatic dashboard refresh
+- **Popular Questions** - Pre-built queries for common security scenarios
+- **Enhanced Chat Features** - Clear chat history, copy responses, and improved error handling
+
+### 🆕 **Latest Enhancements**
+- **Smart Security Score** - Weighted vulnerability scoring with info tooltips and color coding
+- **Real-Time Dashboard** - Auto-refreshing widgets with accurate vulnerability counts
+- **Scan Bundling** - Groups related scans with custom naming and detailed views
+- **Bulk Operations** - Select multiple scans for deletion or export to JSON
+- **Live Scanning** - Real-time progress meters and streaming logs during scans
+- **Image Drill-Down** - Click on images to view specific vulnerabilities and packages
+- **Enhanced Chat** - Clear chat button, improved error handling, and better AI responses
+
+## 📋 Prerequisites
+
+Before running ChatCVE, ensure you have the following installed on your system:
+
+### 🐍 **Python Requirements**
+- **Python 3.10+** (required for Langchain compatibility)
+- **pip** package manager
+- **Virtual environment** support (venv)
+
+### 🟢 **Node.js Requirements**
+- **Node.js 18+** (LTS recommended)
+- **npm** package manager
+
+### 🔧 **System Dependencies**
 ```bash
-git clone https://github.com/chatCVE/lang-chain-app.git
+# Ubuntu/Debian
+sudo apt update
+sudo apt install python3 python3-pip python3-venv nodejs npm git sqlite3 docker.io
+
+# macOS (with Homebrew)
+brew install python@3.10 node npm git sqlite docker
+
+# CentOS/RHEL/Fedora
+sudo dnf install python3 python3-pip nodejs npm git sqlite docker
+
+# Note: Docker is required for container image scanning
 ```
-2. Enter the project directory:
+
+### 🔑 **API Keys (Optional but Recommended)**
+- **OpenAI API Key** - For enhanced AI chat capabilities
+- **NVD API Key** - For increased rate limits (5 → 50 requests/30s)
+
+## ⚡ Quick Start
+
+### 1️⃣ **Clone the Repository**
 ```bash
+git clone https://github.com/jasona7/ChatCVE.git
 cd ChatCVE
 ```
-3. Setup a Python environment:
+
+### 2️⃣ **Set Up Python Virtual Environment**
 ```bash
+# Create virtual environment
 python3 -m venv .env
-source ./env/bin/activate
+
+# Activate virtual environment
+source .env/bin/activate  # Linux/macOS
+# or
+.env\Scripts\activate     # Windows
 ```
-4. Install Grype and Syft
+
+### 3️⃣ **Install Python Dependencies**
 ```bash
-pip install syft
-curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-```
-5. Install requirements
-```bash
+# Install from requirements.txt (includes all necessary packages)
 pip install -r requirements.txt
 ```
-6. Create the app_patrol and nvd_cves databases
+
+### 4️⃣ **Install Node.js Dependencies**
 ```bash
-sqlite3> CREATE TABLE app_patrol (
-    NAME TEXT,
-    INSTALLED TEXT,
-    FIXED_IN TEXT,
-    TYPE TEXT,
-    VULNERABILITY TEXT,
-    SEVERITY TEXT,
-    IMAGE_TAG TEXT,
-     DATE_ADDED TEXT);
-
-sqlite3> CREATE TABLE nvd_cves (
-    cve_id TEXT PRIMARY KEY,
-    source_id TEXT,
-    published TEXT,
-    last_modified TEXT,
-    vuln_status TEXT,
-    description TEXT,
-    cvss_v30_vector_string TEXT,
-    cvss_v30_base_score REAL,
-    cvss_v30_base_severity TEXT,
-    cvss_v2_vector_string TEXT,
-    cvss_v2_base_score REAL,
-    cvss_v2_base_severity TEXT,
-    weakness TEXT,
-    ref_info TEXT);
-
-5. Create an images.txt file with your images to scan.  Include the registry, repo, and version tag:
-
-public.ecr.aws/tanzu_observability_demo_app/to-demo/inventory:latest
-public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest
-public.ecr.aws/tanzu_observability_demo_app/to-demo/delivery:latest
-public.ecr.aws/tanzu_observability_demo_app/to-demo/warehouse:latest
-public.ecr.aws/tanzu_observability_demo_app/to-demo/notification:latest
-public.ecr.aws/tanzu_observability_demo_app/to-demo/styling:latest
-public.ecr.aws/tanzu_observability_demo_app/to-demo/packaging:latest
-public.ecr.aws/tanzu_observability_demo_app/to-demo/printing:latest
-public.ecr.aws/tanzu_observability_demo_app/to-demo/payments:latest
-public.ecr.aws/tanzu_observability_demo_app/to-demo/loadgen:latest
-public.ecr.aws/amazoncorretto/amazoncorretto:20-al2-jdk
-public.ecr.aws/docker/library/tomcat:9.0.75-jdk8-corretto-al2
-public.ecr.aws/bitnami/minio:2023.5.18
-public.ecr.aws/p4c2e2q6/miniamplify-x86:latest
-public.ecr.aws/xray/aws-xray-daemon:3.3.7
-public.ecr.aws/datadog/agent:7.45.0-rc.5
-public.ecr.aws/aws-ec2/aws-node-termination-handler:v1.19.0
-public.ecr.aws/aws-gcr-solutions/data-transfer-hub-ecr:v1.0.4
-public.ecr.aws/bitnami/jenkins:2.387.3
+# Navigate to frontend directory and install
+cd frontend-next
+npm install
+cd ..
 ```
 
-
-
-## 💻 Usage
-1. Initiate a scan that will kick off the SBOM and CVE artifact creation.  SBOM reports will appear in output/sbom,
-and scan summaries will apear in output/scan_summary.
-``` bash
-python scan.py
-```
-
-2. Initiate an App Patrol scan which will create SBOM records in the SQLite3 backend:
-``` bash
-python fetch_daily_nvd_cves.py
-```
-
-3. Check the SBOM records have been added:
-``` bash
-sqlite3 app_patrol.db
-sqlite> SELECT * FROM app_patrol LIMIT 10;
-tar|1.34+dfsg-1||deb|CVE-2005-2541|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
-login|1:4.8.1-1||deb|CVE-2007-5686|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
-passwd|1:4.8.1-1||deb|CVE-2007-5686|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
-libssl1.1|1.1.1n-0+deb11u3||deb|CVE-2007-6755|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
-openssl|1.1.1n-0+deb11u3||deb|CVE-2007-6755|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
-jetty-setuid-java|1.0.4||java-archive|CVE-2009-5045|High|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
-jetty-setuid-java|1.0.4||java-archive|CVE-2009-5046|Medium|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
-libssl1.1|1.1.1n-0+deb11u3||deb|CVE-2010-0928|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
-openssl|1.1.1n-0+deb11u3||deb|CVE-2010-0928|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
-libc-bin|2.31-13+deb11u3||deb|CVE-2010-4756|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
-```
-
-4. Start a Chat-CVE OpenAI SQL Agent session (localhost:5000):
-
-NOTE: Refine guardrails, temperature, etc to improve accuracy and output.
+### 5️⃣ **Install Vulnerability Scanning Tools**
 ```bash
-python frontend/app.py
+# Install Syft and Grype (required for real scanning)
+./install-scan-tools.sh
+
+# Or install manually:
+# Linux/macOS: Download from GitHub releases
+# Windows: Use package managers or manual installation
 ```
-![CVE Query Interface](assets/chatcve_ui.png)
 
-NOTE: chat_cve.py will let you launch a command line session.
-
-Query at the prompt:
+### 6️⃣ **Configure Environment Variables (Optional)**
 ```bash
-Enter a question or type 'exit' to quit: Which NAME in app_patrol table has the most CRITICAL Severity records?
+# Set your OpenAI API key for enhanced AI features
+export OPENAI_API_KEY="your_openai_api_key_here"
+export NVD_API_KEY="your_nvd_api_key_here"  # Optional
 ```
-    Expected Output:
+
+### 7️⃣ **Check Prerequisites**
 ```bash
-** Thought: I should query the app_patrol table to get the name with the most Critical CVEs. **
-Thought: I should execute the query to get the results.
-Action: query_sql_db
-Action Input: SELECT NAME, COUNT(*) AS Top FROM app_patrol WHERE SEVERITY = 'Critical' GROUP BY NAME ORDER BY Top DESC LIMIT 3
-Observation: [('curl', 42), ('libcurl4', 42), ('libpcre2-8-0', 16)]
-Thought: I now know the final answer.
-Final Answer: The top 3 Names in the app_patrol table sorted by the top count of critical in the severity column are 'curl', 'libcurl4', and 'libpcre2-8-0'.
+# Verify all dependencies are installed
+./check-prerequisites.sh
 ```
 
-
-## 🌈 Software Supply Chain and Security Use Cases
-- **Security Analysts**: Assist Triage & find detailed CVE information quickly without dealing with intricate databases.
-- **Audit Teams**: Efficiently target auditing efforts and ensure compliance with security standards.
-- **Compliance Teams**: Maintain documentation and track usage for attestation efforts, ensuring all known libraries are documented.  Non technical personnel can simply use human langauge.
-- **Development Teams**: Efficiently target underlying libraries and get access to remediation suggestions.
-
-## ⭐⭐ Example prompt queries and results
+### 8️⃣ **Start ChatCVE**
 ```bash
-What percentage of records are for curl in the app_patrol table?
+# Make the startup script executable
+chmod +x start-chatcve.sh
 
-Thought: I should query the app_patrol table to get the percentage of records for curl.
-Action: query_sql_db
-Action Input: SELECT COUNT(*) * 100.0 / (SELECT COUNT(*) FROM app_patrol) FROM app_patrol WHERE NAME = 'curl'
-Observation: [(6.006697362913353,)]
-Thought: I now know the final answer.
-Final Answer: 6.006697362913353% of records in the app_patrol table are for curl.
-
-How many critical records are there in the app_patrol table?
-
-Thought: I should query the app_patrol table for the number of critical records.
-Action: query_sql_db
-Action Input: SELECT COUNT(*) FROM app_patrol WHERE SEVERITY = 'Critical'
-Observation: [(246,)]
-Thought: I now know the final answer.
-Final Answer: There are 246 critical records in the app_patrol table.
-
-Which name in the app_patrol table has the most Critical Severity records?
-
-Thought: I should query the app_patrol table to find the name with the most Critical Severity records.
-Action: query_sql_db
-Action Input: SELECT NAME, COUNT(*) AS count FROM app_patrol WHERE SEVERITY = 'Critical' GROUP BY NAME ORDER BY count DESC LIMIT 10;
-Observation: [('curl', 42), ('libcurl4', 42), ('libpcre2-8-0', 16), ('libksba8', 15), ('jetty-setuid-java', 14), ('libdb5.3', 9), ('libtasn1-6', 9), ('zlib1g', 8), ('System.Drawing.Common', 7), ('libexpat1', 7)]
-Thought: I now know the final answer.
-Final Answer: The name with the most Critical Severity records is 'curl' with 42 records.
+# Start both frontend and backend
+./start-chatcve.sh
 ```
 
+## 🌐 Accessing ChatCVE
+
+Once started, ChatCVE will be available at:
+
+- **📊 Dashboard**: http://localhost:3000 - Real-time security overview with auto-refresh
+- **💬 AI Chat**: http://localhost:3000/chat - Natural language vulnerability queries
+- **🔍 CVE Explorer**: http://localhost:3000/cves - Browse and search CVE database
+- **🛡️ Scan Management**: http://localhost:3000/scans - Run and manage vulnerability scans
+- **🗄️ Database**: http://localhost:3000/database - Database browser and management
+- **⚙️ Settings**: http://localhost:3000/settings - Configuration and preferences
+- **🔧 API Backend**: http://localhost:5000 - REST API endpoints
+
+## 📸 Screenshots
+
+### Dashboard Overview
+The main dashboard provides real-time security metrics with auto-refresh capabilities:
+- **Total Vulnerabilities**: Live count across all scanned images
+- **Critical Issues**: High-priority vulnerabilities with progress indicators
+- **Security Score**: Intelligent weighted scoring with explanation tooltips
+- **Recent Activity**: Real-time feed of scan results and system events
+
+### AI Chat Interface
+Natural language vulnerability analysis with enhanced features:
+- **Smart Responses**: AI queries your actual scan data using SQL
+- **Clear Chat**: Button to clear conversation history
+- **Copy & Save**: Copy responses or save important queries
+- **Popular Questions**: Pre-built security queries for quick access
+
+### Advanced Scan Management
+Comprehensive scanning with real-time feedback:
+- **Multiple Input Types**: Container images, Git repos, or text files with image lists
+- **Live Progress**: Real-time progress bars and streaming logs
+- **Scan Bundling**: Group related scans with custom names
+- **Bulk Operations**: Select multiple scans for deletion or export
+- **Detailed Views**: Drill down into specific images and vulnerabilities
+
+### Vulnerability Analysis
+In-depth security analysis capabilities:
+- **Image-Level Details**: View vulnerabilities by container image
+- **Package Breakdown**: See specific packages and their vulnerabilities
+- **Severity Classification**: Color-coded severity levels with counts
+- **Export Capabilities**: Save scan results to JSON for reporting
+
+## 🔧 Configuration
+
+### Environment Variables
+```bash
+# Core Configuration
+OPENAI_API_KEY=your_openai_api_key_here    # Required for AI chat
+NVD_API_KEY=your_nvd_api_key_here          # Optional, increases rate limits
+DATABASE_PATH=app_patrol.db                # SQLite database location
+FLASK_ENV=development                      # Flask environment
+
+# Optional Configuration
+FLASK_DEBUG=1                              # Enable debug mode
+PORT=5000                                  # Backend port (default: 5000)
+FRONTEND_PORT=3000                         # Frontend port (default: 3000)
+```
+
+### Scan Input Formats
+
+#### Text File Format (images.txt)
+```
+public.ecr.aws/nginx/nginx:1.28-alpine3.21-slim
+public.ecr.aws/bitnami/aws-cli:latest
+public.ecr.aws/cloudwatch-agent/cloudwatch-agent-target-allocator:latest
+public.ecr.aws/docker/library/alpine:3.19
+```
+
+#### Supported Scan Sources
+- **Container Images**: Docker Hub, ECR, GCR, private registries
+- **Git Repositories**: Public and private repositories (future feature)
+- **SBOM Files**: Existing Software Bill of Materials (future feature)
+
+## 🛠️ Development
+
+### Project Structure
+```
+ChatCVE/
+├── api/                          # Flask backend
+│   ├── flask_backend.py         # Main API server
+│   └── scan_service.py          # Scanning logic
+├── frontend-next/               # Next.js frontend
+│   ├── src/
+│   │   ├── app/                # App router pages
+│   │   ├── components/         # React components
+│   │   └── lib/                # Utilities and API client
+├── install-scan-tools.sh       # Dependency installer
+├── start-chatcve.sh           # Startup script
+├── check-prerequisites.sh     # Dependency checker
+└── requirements.txt           # Python dependencies
+```
+
+### Running in Development Mode
+
+#### Backend Development
+```bash
+cd api
+source ../.env/bin/activate
+python3 flask_backend.py
+```
+
+#### Frontend Development
+```bash
+cd frontend-next
+npm run dev
+```
+
+### Adding New Features
+1. **Backend**: Add endpoints in `flask_backend.py`
+2. **Frontend**: Create components in `src/components/`
+3. **Database**: Extend SQLite schema as needed
+4. **Scanning**: Modify `scan_service.py` for new scan types
+
+## 🔍 API Documentation
+
+### Core Endpoints
+- `GET /api/stats/vulnerabilities` - Vulnerability statistics
+- `POST /api/chat` - AI chat interface
+- `GET /api/chat/history` - Chat history
+- `GET /api/scans` - Scan results
+- `POST /api/scans/start` - Start new scan
+- `DELETE /api/scans/{id}` - Delete scan
+- `GET /api/activity/recent` - Recent scan activity
+
+### Scan Management
+- `GET /api/scans/{id}/progress` - Scan progress
+- `GET /api/scans/{id}/logs` - Scan logs
+- `GET /api/scans/{id}/images` - Scan images
+- `GET /api/scans/{id}/images/{image}/vulnerabilities` - Image vulnerabilities
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+#### "Module not found" Errors
+```bash
+# Ensure virtual environment is activated
+source .env/bin/activate
+pip install -r requirements.txt
+```
+
+#### Docker Permission Issues
+```bash
+# Add user to docker group (Linux)
+sudo usermod -aG docker $USER
+# Log out and back in, or restart session
+```
+
+#### Port Already in Use
+```bash
+# Kill existing processes
+./kill-chatcve-processes.sh
+```
+
+#### Database Issues
+```bash
+# Check database file permissions
+ls -la app_patrol.db
+
+# Reset database (WARNING: Deletes all data)
+rm app_patrol.db
+# Database will be recreated on next startup
+```
+
+### Getting Help
+1. Check the logs in your terminal for error messages
+2. Ensure all prerequisites are installed with `./check-prerequisites.sh`
+3. Verify Docker is running: `docker ps`
+4. Check API connectivity: `curl http://localhost:5000/health`
 
 ## 🤝 Contributing
-We welcome your feedback! 🙌 
-For all significant changes, please open an issue first to discuss what you'd like to improve.
 
-## 📃 License
-Our project is licensed under the [MIT License](https://choosealicense.com/licenses/mit/).
+This is a self-hosted solution designed for individual or team deployment. While primarily maintained for specific use cases, contributions are welcome:
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- **Syft & Grype** - Anchore's excellent SBOM and vulnerability scanning tools
+- **Langchain** - For AI agent capabilities
+- **Next.js & Tailwind** - For the modern frontend framework
+- **Shadcn UI** - For beautiful, accessible components
+- **OpenAI** - For powering the AI chat capabilities
+
+## 📊 System Requirements
+
+### Minimum Requirements
+- **CPU**: 2 cores
+- **RAM**: 4GB
+- **Storage**: 2GB free space
+- **Network**: Internet access for vulnerability data updates
+
+### Recommended Requirements
+- **CPU**: 4+ cores
+- **RAM**: 8GB+
+- **Storage**: 10GB+ free space (for container images and scan data)
+- **Network**: High-speed internet for faster scanning
+
+---
+
+**Built with ❤️ for DevSecOps teams who need intelligent vulnerability management.**
