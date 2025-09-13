@@ -4,6 +4,12 @@
 
 ChatCVE is a comprehensive AI-powered DevSecOps platform that helps security teams triage, analyze, and manage vulnerabilities across their infrastructure. Built with modern web technologies and powered by Langchain AI, it provides intelligent vulnerability analysis, automated scanning, and intuitive dashboards for security operations.
 
+## 📊 Dashboard Overview
+
+![ChatCVE Dashboard](screenshots/chatcve_dashboard_1.jpg)
+
+*Real-time security dashboard with vulnerability statistics, risk scoring, and activity monitoring*
+
 ## 🚀 Features
 
 ### 🎯 **Core Capabilities**
