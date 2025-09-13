@@ -59,9 +59,13 @@ Before running ChatCVE, ensure you have the following installed on your system:
 - **Node.js 18+** (LTS recommended)
 - **npm** package manager
 
+### 🐳 **Docker Requirements**
+- **Docker Engine** (required for container image scanning)
+- **Docker daemon** must be running
+- **User permissions** to run Docker commands
+
 ### 🔧 **System Dependencies**
 ```bash
-<<<<<<< HEAD
 # Ubuntu/Debian
 sudo apt update
 sudo apt install python3 python3-pip python3-venv nodejs npm git sqlite3 docker.io
@@ -72,10 +76,12 @@ brew install python@3.10 node npm git sqlite docker
 # CentOS/RHEL/Fedora
 sudo dnf install python3 python3-pip nodejs npm git sqlite docker
 
-# Note: Docker is required for container image scanning
-=======
-git clone https://github.com/jasona7/ChatCVE.git
->>>>>>> c7063214401f3c6b2702d9d37215697c8b826908
+# Start Docker service
+sudo systemctl start docker
+sudo systemctl enable docker
+
+# Add user to docker group (optional, to avoid sudo)
+sudo usermod -aG docker $USER
 ```
 
 ### 🔑 **API Keys (Optional but Recommended)**
