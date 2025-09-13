@@ -197,38 +197,49 @@ Once started, ChatCVE will be available at:
 
 ## 📸 Screenshots
 
-### Dashboard Overview
-The main dashboard provides real-time security metrics with auto-refresh capabilities:
-- **Total Vulnerabilities**: Live count across all scanned images
-- **Critical Issues**: High-priority vulnerabilities with progress indicators
-- **Security Score**: Intelligent weighted scoring with explanation tooltips
-- **Recent Activity**: Real-time feed of scan results and system events
+### 💬 **AI Assistant & Intelligent Analysis**
+![AI Chat Interface](screenshots/chatcve_aichat_1.jpg)
 
-### AI Chat Interface
-Natural language vulnerability analysis with enhanced features:
+Natural language vulnerability analysis powered by Langchain:
 - **Smart Responses**: AI queries your actual scan data using SQL
+- **Popular Questions**: Pre-built security queries for quick access
 - **Clear Chat**: Button to clear conversation history
 - **Copy & Save**: Copy responses or save important queries
-- **Popular Questions**: Pre-built security queries for quick access
+- **Context-Aware**: AI understands your scan history and provides relevant insights
 
-### Advanced Scan Management
-Comprehensive scanning with real-time feedback:
-- **Multiple Input Types**: Container images, Git repos, or text files with image lists
-- **Live Progress**: Real-time progress bars and streaming logs
-- **Scan Bundling**: Group related scans with custom names
+### 🗄️ **Database Interface & SQL Queries**
+![Database Access](screenshots/chatcve_database_1.jpg)
+
+Direct database access with powerful query capabilities:
+- **SQL Query Interface**: Execute custom queries against vulnerability data
+- **Sample Queries**: Pre-built queries for common security analysis tasks
+- **Database Schema**: Visual representation of tables and relationships
+- **Export Results**: Save query results to CSV for further analysis
+- **Real-Time Stats**: Live database metrics and connection status
+- **Color-Coded Severity**: Critical and High severity badges with proper visual indicators
+
+### 🚀 **Scan Configuration & Setup**
+![New Scan Setup](screenshots/chatcve_newscan_1.jpg)
+
+Streamlined scan configuration process:
+- **Text File Upload**: Upload files containing container image references
+- **Scan Preview**: Preview images to be scanned before execution
+- **Custom Naming**: Assign meaningful names to scan bundles
+- **Docker Integration**: Automatic Docker image pulling and analysis
+- **Progress Tracking**: Real-time scan progress with detailed logs
+
+### 🛡️ **Advanced Scan Management & CVE Analysis**
+![Scan Management](screenshots/chatcve_scanhistory_3.jpg)
+
+Comprehensive scanning with detailed vulnerability analysis:
+- **Container Image Scanning**: Support for Docker images with live progress
+- **Scan Bundling**: Group related scans with custom names and metadata
 - **Bulk Operations**: Select multiple scans for deletion or export
 - **Detailed Views**: Drill down into specific images and vulnerabilities
-
-### Vulnerability Analysis
-In-depth security analysis capabilities:
-- **Image-Level Details**: View vulnerabilities by container image
-- **Package Breakdown**: See specific packages and their vulnerabilities
-- **Severity Classification**: Color-coded severity levels with counts
-- **Export Capabilities**: Save scan results to JSON for reporting
-- **📊 Rich Metadata Display**: Performance metrics, risk scores, and technical details
-- **🎯 Exploitable CVE Identification**: Highlights actively exploitable vulnerabilities
-- **⏱️ Scan Performance Tracking**: Duration, package counts, and efficiency metrics
-- **🔧 Technical Provenance**: Tool versions, scan engines, and reproducibility data
+- **Risk Scoring**: Intelligent security scoring with color-coded indicators
+- **Color-Coded Severity**: Visual severity classification (Critical=Red, High=Orange, Medium=Yellow, Low=Blue)
+- **CVE Drill-Down**: Click on vulnerability counts to explore specific CVEs and affected packages
+- **Export Capabilities**: Save scan results to JSON for reporting and analysis
 
 ## 📊 Security Scoring & Risk Assessment
 

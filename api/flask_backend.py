@@ -45,77 +45,26 @@ def initialize_agent():
             openai_api_key=OPENAI_API_KEY
         )
         
-        # Connect to SQLite database
+        # Connect to SQLite database - prioritize scan_metadata for scan questions
         db = SQLDatabase.from_uri(f"sqlite:///{DATABASE_PATH}")
         toolkit = SQLDatabaseToolkit(db=db, llm=llm)
         
         # Custom prompt to help AI understand the database structure
         custom_prompt = """
-You are a ChatCVE security analyst AI assistant. You have access to a comprehensive vulnerability database with the following structure:
+You are a ChatCVE security analyst AI assistant.
 
-TABLES:
-1. app_patrol - Contains vulnerability scan results for packages
-   - NAME: Package name 
-   - INSTALLED: Package version
-   - VULNERABILITY: CVE/GHSA ID
-   - SEVERITY: CRITICAL, HIGH, MEDIUM, LOW
-   - IMAGE_TAG: Container image scanned
-   - DATE_ADDED: When the scan was performed
+⚠️ MANDATORY TABLE SELECTION:
+- Questions about SCAN NAMES, SCAN COUNTS, SCAN METADATA → ALWAYS use scan_metadata table
+- Questions about CVEs, PACKAGES, VULNERABILITIES → use app_patrol table
 
-2. scan_metadata - Contains comprehensive scan session information
-   Basic Information:
-   - scan_timestamp: When the scan started (primary key)
-   - user_scan_name: User-friendly name for the scan (e.g., "SCAN BUNDLE - PROJECT A")
-   - image_count: Number of images in the scan
-   - created_at: When the scan record was created
-   
-   Performance & Statistics:
-   - scan_duration: Total scan time in seconds
-   - total_packages_scanned: Total packages analyzed across all images
-   - total_vulnerabilities_found: Total vulnerabilities discovered
-   - scan_status: SUCCESS, FAILED, or PARTIAL
-   - scan_type: FULL, INCREMENTAL, or RESCAN
-   
-   Technical Details:
-   - syft_version: Version of Syft SBOM tool used
-   - grype_version: Version of Grype vulnerability scanner used
-   - scan_engine: DOCKER_PULL or REGISTRY_API (scanning method)
-   - scan_source: FILE_UPLOAD, MANUAL_INPUT, or API (how scan was initiated)
-   
-   Security Insights:
-   - risk_score: Calculated risk score (0-100)
-   - critical_count: Number of critical vulnerabilities
-   - high_count: Number of high severity vulnerabilities  
-   - medium_count: Number of medium severity vulnerabilities
-   - low_count: Number of low severity vulnerabilities
-   - exploitable_count: Number of actively exploitable CVEs
-   
-   Compliance & Tracking:
-   - scan_initiator: Username/system that started the scan
-   - compliance_policy: Applied security policy (optional)
-   - scan_tags: JSON array of tags for categorization
-   - project_name: Associated project name (optional)
-   - environment: PRODUCTION, STAGING, or DEVELOPMENT (optional)
+BEFORE querying, check if scan_metadata table exists by running: sql_db_schema scan_metadata
 
-3. scan_details (VIEW) - Joins app_patrol and scan_metadata
-   - All columns from both tables, linked by timestamp
-   - Use this view when users ask about scans by name or need comprehensive scan information
+For scan questions, the scan_metadata table contains:
+- user_scan_name: Actual scan names like "PROJECT A - SCAN BUNDLE" 
+- scan_timestamp: When scans were performed
+- All scan statistics and metadata
 
-IMPORTANT RELATIONSHIPS:
-- To find scans by name, use scan_metadata or scan_details view
-- To get vulnerability details, use app_patrol or scan_details view
-- Scans are linked by matching substr(DATE_ADDED, 1, 19) = substr(scan_timestamp, 1, 19)
-- scan_tags is stored as JSON text - use json_extract() to query specific tags
-
-COMMON QUERIES:
-- Scan performance: Use scan_duration, total_packages_scanned from scan_metadata
-- Risk analysis: Use risk_score, exploitable_count, severity counts from scan_metadata
-- Project tracking: Use project_name, environment, scan_initiator from scan_metadata
-- Technical details: Use tool versions, scan_engine, scan_source from scan_metadata
-
-When users ask about "scans" or "scan bundles", they're referring to the user_scan_name field in scan_metadata.
-For performance questions, focus on scan_duration, total_packages_scanned, and severity breakdowns.
-For risk questions, emphasize risk_score, exploitable_count, and critical/high severity vulnerabilities.
+NEVER use app_patrol.NAME for scan names - it contains package names only!
 """
 
         agent_executor = create_sql_agent(
@@ -123,7 +72,6 @@ For risk questions, emphasize risk_score, exploitable_count, and critical/high s
             toolkit=toolkit,
             verbose=True,
             agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-            handle_parsing_errors=True,
             prefix=custom_prompt
         )
         
@@ -667,9 +615,10 @@ def get_image_vulnerabilities(scan_id, image_name):
         print(f"Error getting image vulnerabilities: {e}")
         return jsonify({'error': 'Failed to retrieve image vulnerabilities'}), 500
 
-@app.route('/cves', methods=['GET'])
-def get_cves():
-    """Get CVE information"""
+# Old CVE endpoints removed to avoid conflicts
+# Using new /api/cves endpoints instead
+
+# Real Scanning Endpoints
     try:
         limit = request.args.get('limit', 50, type=int)
         
@@ -894,6 +843,182 @@ def get_active_scans():
     except Exception as e:
         print(f"Error getting active scans: {e}")
         return jsonify({'error': str(e)}), 500
+
+@app.route('/api/cves', methods=['GET'])
+def get_cves():
+    """Get list of CVEs with counts and severity info"""
+    try:
+        limit = request.args.get('limit', 50, type=int)
+        search = request.args.get('search', '', type=str)
+        severity_filter = request.args.get('severity', '', type=str)
+        
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+            
+        cursor = conn.cursor()
+        
+        # Build WHERE clause
+        where_conditions = []
+        params = []
+        
+        # Filter by search term
+        if search:
+            where_conditions.append("(VULNERABILITY LIKE ? OR NAME LIKE ?)")
+            params.extend([f'%{search}%', f'%{search}%'])
+        
+        # Filter by severity
+        if severity_filter:
+            where_conditions.append("SEVERITY = ?")
+            params.append(severity_filter.upper())
+        
+        # Only include actual CVEs/GHSAs
+        where_conditions.append("(VULNERABILITY LIKE 'CVE-%' OR VULNERABILITY LIKE 'GHSA-%')")
+        
+        where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+        
+        # Get CVE summary data
+        cursor.execute(f"""
+            SELECT 
+                VULNERABILITY,
+                SEVERITY,
+                COUNT(DISTINCT IMAGE_TAG) as affected_images,
+                COUNT(DISTINCT NAME) as affected_packages,
+                COUNT(*) as total_occurrences,
+                MIN(DATE_ADDED) as first_seen,
+                MAX(DATE_ADDED) as last_seen
+            FROM app_patrol 
+            WHERE {where_clause}
+            GROUP BY VULNERABILITY, SEVERITY
+            ORDER BY 
+                CASE SEVERITY 
+                    WHEN 'CRITICAL' THEN 1
+                    WHEN 'HIGH' THEN 2
+                    WHEN 'MEDIUM' THEN 3
+                    WHEN 'LOW' THEN 4
+                    ELSE 5
+                END,
+                total_occurrences DESC
+            LIMIT ?
+        """, params + [limit])
+        
+        results = cursor.fetchall()
+        conn.close()
+        
+        cves = []
+        for row in results:
+            vulnerability, severity, affected_images, affected_packages, total_occurrences, first_seen, last_seen = row
+            cves.append({
+                'id': vulnerability,
+                'severity': severity,
+                'affected_images': affected_images,
+                'affected_packages': affected_packages,
+                'total_occurrences': total_occurrences,
+                'first_seen': first_seen,
+                'last_seen': last_seen,
+                'cvss_score': None  # Could be enhanced later
+            })
+        
+        return jsonify(cves)
+        
+    except Exception as e:
+        print(f"Error getting CVEs: {e}")
+        return jsonify({'error': 'Failed to retrieve CVEs'}), 500
+
+@app.route('/api/cves/<cve_id>/details', methods=['GET'])
+def get_cve_details(cve_id):
+    """Get detailed information about a specific CVE"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+            
+        cursor = conn.cursor()
+        
+        # Get detailed CVE information
+        cursor.execute("""
+            SELECT DISTINCT
+                ap.VULNERABILITY,
+                ap.SEVERITY,
+                ap.NAME as package_name,
+                ap.INSTALLED as package_version,
+                ap.FIXED_IN as fixed_version,
+                ap.TYPE as package_type,
+                ap.IMAGE_TAG as image,
+                ap.DATE_ADDED,
+                sm.user_scan_name,
+                sm.scan_timestamp
+            FROM app_patrol ap
+            LEFT JOIN scan_metadata sm ON substr(ap.DATE_ADDED, 1, 19) = substr(sm.scan_timestamp, 1, 19)
+            WHERE ap.VULNERABILITY = ?
+            ORDER BY ap.DATE_ADDED DESC
+        """, (cve_id,))
+        
+        results = cursor.fetchall()
+        conn.close()
+        
+        if not results:
+            return jsonify({'error': 'CVE not found'}), 404
+        
+        # Group by scan and image
+        scans = {}
+        packages = []
+        images = set()
+        
+        for row in results:
+            vulnerability, severity, pkg_name, pkg_version, fixed_version, pkg_type, image, date_added, scan_name, scan_timestamp = row
+            
+            # Track unique images
+            images.add(image)
+            
+            # Group by scan
+            scan_key = scan_timestamp or date_added[:19]
+            if scan_key not in scans:
+                scans[scan_key] = {
+                    'scan_name': scan_name or f"Scan {date_added[:10]}",
+                    'scan_timestamp': scan_timestamp or date_added,
+                    'images': set(),
+                    'packages': []
+                }
+            
+            scans[scan_key]['images'].add(image)
+            scans[scan_key]['packages'].append({
+                'name': pkg_name,
+                'version': pkg_version,
+                'fixed_in': fixed_version,
+                'type': pkg_type,
+                'image': image
+            })
+            
+            # Track all packages
+            packages.append({
+                'name': pkg_name,
+                'version': pkg_version,
+                'fixed_in': fixed_version,
+                'type': pkg_type,
+                'image': image,
+                'scan_name': scan_name
+            })
+        
+        # Convert sets to lists for JSON serialization
+        for scan in scans.values():
+            scan['images'] = list(scan['images'])
+        
+        cve_details = {
+            'id': cve_id,
+            'severity': results[0][1],
+            'affected_images': list(images),
+            'affected_packages': len(set((p['name'], p['version']) for p in packages)),
+            'total_occurrences': len(packages),
+            'scans': list(scans.values()),
+            'packages': packages
+        }
+        
+        return jsonify(cve_details)
+        
+    except Exception as e:
+        print(f"Error getting CVE details: {e}")
+        return jsonify({'error': 'Failed to retrieve CVE details'}), 500
 
 if __name__ == '__main__':
     print("Starting ChatCVE API Backend...")

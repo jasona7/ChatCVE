@@ -98,6 +98,48 @@ export interface ScanMetadata {
   environment?: 'PRODUCTION' | 'STAGING' | 'DEVELOPMENT'
 }
 
+export interface CVEItem {
+  id: string
+  severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+  affected_images: number
+  affected_packages: number
+  total_occurrences: number
+  first_seen: string
+  last_seen: string
+  cvss_score?: number
+  description?: string
+  published?: string
+  score?: number
+}
+
+export interface CVEDetails {
+  id: string
+  severity: string
+  affected_images: string[]
+  affected_packages: number
+  total_occurrences: number
+  scans: {
+    scan_name: string
+    scan_timestamp: string
+    images: string[]
+    packages: {
+      name: string
+      version: string
+      fixed_in?: string
+      type: string
+      image: string
+    }[]
+  }[]
+  packages: {
+    name: string
+    version: string
+    fixed_in?: string
+    type: string
+    image: string
+    scan_name?: string
+  }[]
+}
+
 export interface NewScanRequest {
   name: string
   targets: string[]

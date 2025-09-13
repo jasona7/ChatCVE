@@ -723,14 +723,14 @@ export function ScanManagement() {
       align: 'left' as const,
       render: (scan) => (
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 flex-wrap">
             {scan.risk_score !== undefined && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-xs px-1.5 py-0.5">
                 Risk: {scan.risk_score.toFixed(1)}/100
               </Badge>
             )}
             {scan.exploitable_count !== undefined && scan.exploitable_count > 0 && (
-              <Badge variant="destructive" className="text-xs">
+              <Badge variant="destructive" className="text-xs px-1.5 py-0.5 whitespace-nowrap">
                 {scan.exploitable_count} exploitable
               </Badge>
             )}
@@ -1245,8 +1245,10 @@ export function ScanManagement() {
           }
           
           // Show images list for completed scans when expanded
-          if (!activeScans.has(scan.id) && expandedScan === scan.id && scan.images && scan.images.length > 0) {
-            return <ScanImagesExpanded scanId={scan.id} images={scan.images} scan={scan} />
+          if (!activeScans.has(scan.id) && expandedScan === scan.id) {
+            // Ensure we have images to display, fallback to empty array
+            const imagesToShow = scan.images || []
+            return <ScanImagesExpanded scanId={scan.id} images={imagesToShow} scan={scan} />
           }
           
           return null
@@ -1324,27 +1326,36 @@ function ScanImagesExpanded({ scanId, images, scan }: { scanId: string, images: 
           const data = await response.json()
           setImageDetails(data)
         } else {
-          // Fallback to just showing image names without counts
+          // If API call fails but we have images from scan data, use those
+          if (images.length > 0) {
+            setImageDetails(images.map(image => ({
+              image: image.trim(), // Clean any whitespace
+              vulnerabilities: 0,
+              critical: 0,
+              high: 0,
+              medium: 0,
+              low: 0
+            })))
+          } else {
+            // No images at all
+            setImageDetails([])
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching image details:', error)
+        // Fallback: if we have images from scan data, use those
+        if (images.length > 0) {
           setImageDetails(images.map(image => ({
-            image,
+            image: image.trim(), // Clean any whitespace
             vulnerabilities: 0,
             critical: 0,
             high: 0,
             medium: 0,
             low: 0
           })))
+        } else {
+          setImageDetails([])
         }
-      } catch (error) {
-        console.error('Error fetching image details:', error)
-        // Fallback to just showing image names
-        setImageDetails(images.map(image => ({
-          image,
-          vulnerabilities: 0,
-          critical: 0,
-          high: 0,
-          medium: 0,
-          low: 0
-        })))
       } finally {
         setLoading(false)
       }
@@ -1469,6 +1480,15 @@ function ScanImagesExpanded({ scanId, images, scan }: { scanId: string, images: 
         <Container className="h-4 w-4" />
         Scanned Images ({images.length})
       </h4>
+      
+      {/* Show message if no images found */}
+      {images.length === 0 && (
+        <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
+          <p className="text-sm text-gray-600">📋 No individual images found for this scan</p>
+          <p className="text-xs text-gray-500 mt-1">This may be a legacy scan or the image data wasn't preserved</p>
+        </div>
+      )}
+      
       <div className="space-y-2">
         {imageDetails.map((imageDetail, index) => (
           <div key={index} className="space-y-2">

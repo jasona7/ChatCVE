@@ -8,6 +8,7 @@ import os
 import json
 import subprocess
 import asyncio
+import math
 import tempfile
 import sqlite3
 from datetime import datetime
@@ -313,29 +314,40 @@ class RegistryBasedScanner:
         }
     
     def _calculate_risk_score(self, results: List[Dict]) -> float:
-        """Calculate a risk score based on vulnerabilities found"""
+        """Calculate a risk score based on vulnerabilities found (0-100 scale)"""
         if not results:
             return 0.0
         
-        total_score = 0.0
-        total_packages = sum(result['packages'] for result in results)
+        total_critical = 0
+        total_high = 0
+        total_medium = 0
+        total_low = 0
         
         for result in results:
             severity_counts = result['severity_counts']
-            # Weight vulnerabilities by severity
-            score = (
-                severity_counts['critical'] * 10.0 +
-                severity_counts['high'] * 7.5 +
-                severity_counts['medium'] * 5.0 +
-                severity_counts['low'] * 2.5
-            )
-            total_score += score
+            total_critical += severity_counts['critical']
+            total_high += severity_counts['high']
+            total_medium += severity_counts['medium']
+            total_low += severity_counts['low']
         
-        # Normalize by package count to get risk per package
-        if total_packages > 0:
-            return min(total_score / total_packages * 10, 100.0)  # Cap at 100
+        # Calculate weighted score using exponential scaling for higher severities
+        # This gives more realistic scores that reflect actual risk
+        score = (
+            total_critical * 25.0 +  # Critical: 25 points each (very high impact)
+            total_high * 10.0 +      # High: 10 points each
+            total_medium * 3.0 +     # Medium: 3 points each  
+            total_low * 1.0          # Low: 1 point each
+        )
         
-        return 0.0
+        # Apply logarithmic scaling to prevent scores from getting too high
+        # but still show meaningful differences
+        if score > 0:
+            # Use log scale but ensure reasonable range
+            normalized_score = min(20 * math.log10(score + 1), 100.0)
+        else:
+            normalized_score = 0.0
+        
+        return round(normalized_score, 1)
     
     async def start_scan(self, scan_id: str, scan_name: str, targets: List[str], 
                         scan_initiator: str = 'system', project_name: str = None,
