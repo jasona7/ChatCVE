@@ -340,10 +340,10 @@ public.ecr.aws/cloudwatch-agent/cloudwatch-agent-target-allocator:latest
 public.ecr.aws/docker/library/alpine:3.19
 ```
 
-#### Supported Scan Sources
-- **Container Images**: Docker Hub, ECR, GCR, private registries
-- **Git Repositories**: Public and private repositories (future feature)
-- **SBOM Files**: Existing Software Bill of Materials (future feature)
+#### Scan Input Method
+- **Text File Upload**: Upload a text file containing container image references (one per line)
+- **Supported Registries**: Docker Hub, ECR, GCR, and other public/private registries
+- **Image Format**: Standard Docker image notation (e.g., `nginx:latest`, `public.ecr.aws/library/alpine:3.19`)
 
 ## 🛠️ Development
 
@@ -470,15 +470,6 @@ rm app_patrol.db
 6. **Check Scan Metadata**: Expand scan details to see comprehensive performance and security metrics
 7. **Monitor Risk Scores**: Use the security scoring to prioritize remediation efforts
 
-## 🤝 Contributing
-
-This is a self-hosted solution designed for individual or team deployment. While primarily maintained for specific use cases, contributions are welcome:
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 ## 📄 License
 
