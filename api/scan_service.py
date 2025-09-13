@@ -18,6 +18,8 @@ import logging
 import shutil
 import requests
 from urllib.parse import urlparse
+import time
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -43,6 +45,8 @@ class ScanProgress:
     current_target: Optional[str] = None
     total_targets: Optional[int] = None
     completed_targets: Optional[int] = None
+    # New metadata fields
+    scan_metadata: Optional[Dict] = None
 
 class RegistryBasedScanner:
     def __init__(self, db_path: str = "../app_patrol.db"):
@@ -53,13 +57,26 @@ class RegistryBasedScanner:
         self._check_dependencies()
     
     def _check_dependencies(self):
-        """Check if Docker, Syft and Grype are installed"""
+        """Check if Docker, Syft and Grype are installed and get versions"""
         required_tools = ['docker', 'syft', 'grype']
         missing_tools = []
+        tool_versions = {}
         
         for tool in required_tools:
             if not shutil.which(tool):
                 missing_tools.append(tool)
+            else:
+                # Get tool version
+                try:
+                    version_result = subprocess.run([tool, '--version'], capture_output=True, text=True, timeout=5)
+                    if version_result.returncode == 0:
+                        tool_versions[tool] = version_result.stdout.strip()
+                    else:
+                        tool_versions[tool] = 'unknown'
+                except Exception:
+                    tool_versions[tool] = 'unknown'
+        
+        self.tool_versions = tool_versions
         
         if missing_tools:
             logger.warning(f"Missing required tools: {missing_tools}")
@@ -277,17 +294,58 @@ class RegistryBasedScanner:
             except Exception as e:
                 self._log(scan_id, 'error', f"Could not parse vulnerability results for {image_ref}: {str(e)}")
         
+        # Calculate exploitable count (CVEs with CVSS >= 7.0 or known exploits)
+        exploitable_count = 0
+        for vuln in vulnerabilities:
+            vuln_id = vuln.get('id', '')
+            severity = vuln.get('severity', '').lower()
+            # Consider Critical/High as potentially exploitable
+            if severity in ['critical', 'high']:
+                exploitable_count += 1
+        
         return {
             'image': image_ref,
             'packages': package_count,
             'vulnerabilities': vuln_count,
             'severity_counts': severity_counts,
+            'exploitable_count': exploitable_count,
             'vuln_details': vulnerabilities
         }
     
-    async def start_scan(self, scan_id: str, scan_name: str, targets: List[str]) -> bool:
+    def _calculate_risk_score(self, results: List[Dict]) -> float:
+        """Calculate a risk score based on vulnerabilities found"""
+        if not results:
+            return 0.0
+        
+        total_score = 0.0
+        total_packages = sum(result['packages'] for result in results)
+        
+        for result in results:
+            severity_counts = result['severity_counts']
+            # Weight vulnerabilities by severity
+            score = (
+                severity_counts['critical'] * 10.0 +
+                severity_counts['high'] * 7.5 +
+                severity_counts['medium'] * 5.0 +
+                severity_counts['low'] * 2.5
+            )
+            total_score += score
+        
+        # Normalize by package count to get risk per package
+        if total_packages > 0:
+            return min(total_score / total_packages * 10, 100.0)  # Cap at 100
+        
+        return 0.0
+    
+    async def start_scan(self, scan_id: str, scan_name: str, targets: List[str], 
+                        scan_initiator: str = 'system', project_name: str = None,
+                        environment: str = None, scan_tags: List[str] = None) -> bool:
         """Start a real vulnerability scan"""
-        # Initialize scan progress
+        # Record scan start time for duration calculation
+        scan_start_time = time.time()
+        scan_start_datetime = datetime.now()
+        
+        # Initialize scan progress with metadata
         scan_progress = ScanProgress(
             id=scan_id,
             name=scan_name,
@@ -295,10 +353,19 @@ class RegistryBasedScanner:
             progress=0,
             current_step='Preparing scan environment...',
             logs=[],
-            start_time=datetime.now().isoformat(),
+            start_time=scan_start_datetime.isoformat(),
             targets=targets,
             total_targets=len(targets),
-            completed_targets=0
+            completed_targets=0,
+            scan_metadata={
+                'scan_initiator': scan_initiator,
+                'project_name': project_name,
+                'environment': environment,
+                'scan_tags': scan_tags or [],
+                'scan_type': 'FULL',
+                'scan_source': 'FILE_UPLOAD',
+                'scan_engine': 'DOCKER_PULL'
+            }
         )
         
         self.active_scans[scan_id] = scan_progress
@@ -348,7 +415,40 @@ class RegistryBasedScanner:
                 self.active_scans[scan_id].progress = 90
                 self.active_scans[scan_id].current_step = 'Storing results in database...'
                 
-                # Store results in database
+                # Calculate final metrics
+                scan_end_time = time.time()
+                scan_duration = int(scan_end_time - scan_start_time)  # seconds
+                
+                total_vulns = sum(result['vulnerabilities'] for result in scan_results)
+                total_packages = sum(result['packages'] for result in scan_results)
+                total_exploitable = sum(result['exploitable_count'] for result in scan_results)
+                
+                # Calculate severity breakdown
+                severity_totals = {'critical': 0, 'high': 0, 'medium': 0, 'low': 0}
+                for result in scan_results:
+                    for severity, count in result['severity_counts'].items():
+                        severity_totals[severity] += count
+                
+                # Calculate risk score
+                risk_score = self._calculate_risk_score(scan_results)
+                
+                # Update scan metadata with final results
+                self.active_scans[scan_id].scan_metadata.update({
+                    'scan_duration': scan_duration,
+                    'total_packages_scanned': total_packages,
+                    'total_vulnerabilities_found': total_vulns,
+                    'scan_status': 'SUCCESS',
+                    'risk_score': risk_score,
+                    'critical_count': severity_totals['critical'],
+                    'high_count': severity_totals['high'],
+                    'medium_count': severity_totals['medium'],
+                    'low_count': severity_totals['low'],
+                    'exploitable_count': total_exploitable,
+                    'syft_version': self.tool_versions.get('syft', 'unknown'),
+                    'grype_version': self.tool_versions.get('grype', 'unknown')
+                })
+                
+                # Store results in database with metadata
                 await self._store_scan_results(scan_id, scan_name, scan_results)
                 
                 # Complete the scan
@@ -356,24 +456,37 @@ class RegistryBasedScanner:
                 self.active_scans[scan_id].progress = 100
                 self.active_scans[scan_id].current_step = 'Scan completed successfully'
                 
-                total_vulns = sum(result['vulnerabilities'] for result in scan_results)
-                total_packages = sum(result['packages'] for result in scan_results)
-                
-                self._log(scan_id, 'success', 'Registry-based scan completed successfully')
+                self._log(scan_id, 'success', f'Registry-based scan completed successfully: "{scan_name}"')
                 self._log(scan_id, 'info', f"Total packages analyzed: {total_packages}")
                 self._log(scan_id, 'info', f"Total vulnerabilities found: {total_vulns}")
+                self._log(scan_id, 'info', f"Scan duration: {scan_duration} seconds")
+                self._log(scan_id, 'info', f"Risk score: {risk_score:.1f}/100")
                 self._log(scan_id, 'info', 'No Docker daemon required - used registry APIs only')
                 
                 return True
                 
         except Exception as e:
+            # Calculate duration even for failed scans
+            scan_end_time = time.time()
+            scan_duration = int(scan_end_time - scan_start_time)
+            
+            # Update metadata for failed scan
+            if scan_id in self.active_scans and self.active_scans[scan_id].scan_metadata:
+                self.active_scans[scan_id].scan_metadata.update({
+                    'scan_duration': scan_duration,
+                    'scan_status': 'FAILED',
+                    'syft_version': self.tool_versions.get('syft', 'unknown'),
+                    'grype_version': self.tool_versions.get('grype', 'unknown')
+                })
+            
             self.active_scans[scan_id].status = 'failed'
             self.active_scans[scan_id].current_step = f'Scan failed: {str(e)}'
             self._log(scan_id, 'error', f"Scan failed: {str(e)}")
+            self._log(scan_id, 'info', f"Scan duration before failure: {scan_duration} seconds")
             return False
     
     async def _store_scan_results(self, scan_id: str, scan_name: str, results: List[Dict]):
-        """Store scan results in the database"""
+        """Store scan results in the database with comprehensive metadata"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
@@ -381,11 +494,42 @@ class RegistryBasedScanner:
             # Use a consistent timestamp for both metadata and vulnerability data
             scan_timestamp = datetime.now().isoformat()
             
-            # Store scan metadata FIRST to ensure it's available for JOINs
+            # Get metadata from active scan
+            metadata = self.active_scans[scan_id].scan_metadata if scan_id in self.active_scans else {}
+            
+            # Store comprehensive scan metadata FIRST
             cursor.execute("""
-                INSERT OR REPLACE INTO scan_metadata (scan_timestamp, user_scan_name, image_count)
-                VALUES (?, ?, ?)
-            """, (scan_timestamp, scan_name, len(results)))
+                INSERT OR REPLACE INTO scan_metadata (
+                    scan_timestamp, user_scan_name, image_count,
+                    scan_duration, total_packages_scanned, total_vulnerabilities_found,
+                    scan_status, scan_type, syft_version, grype_version,
+                    scan_engine, scan_source, risk_score, critical_count,
+                    high_count, medium_count, low_count, exploitable_count,
+                    scan_initiator, compliance_policy, scan_tags, project_name, environment
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                scan_timestamp, scan_name, len(results),
+                metadata.get('scan_duration', 0),
+                metadata.get('total_packages_scanned', 0),
+                metadata.get('total_vulnerabilities_found', 0),
+                metadata.get('scan_status', 'SUCCESS'),
+                metadata.get('scan_type', 'FULL'),
+                metadata.get('syft_version', 'unknown'),
+                metadata.get('grype_version', 'unknown'),
+                metadata.get('scan_engine', 'DOCKER_PULL'),
+                metadata.get('scan_source', 'FILE_UPLOAD'),
+                metadata.get('risk_score', 0.0),
+                metadata.get('critical_count', 0),
+                metadata.get('high_count', 0),
+                metadata.get('medium_count', 0),
+                metadata.get('low_count', 0),
+                metadata.get('exploitable_count', 0),
+                metadata.get('scan_initiator', 'system'),
+                metadata.get('compliance_policy'),
+                json.dumps(metadata.get('scan_tags', [])),
+                metadata.get('project_name'),
+                metadata.get('environment')
+            ))
             
             # Store each image's results
             for result in results:

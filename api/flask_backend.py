@@ -49,12 +49,82 @@ def initialize_agent():
         db = SQLDatabase.from_uri(f"sqlite:///{DATABASE_PATH}")
         toolkit = SQLDatabaseToolkit(db=db, llm=llm)
         
+        # Custom prompt to help AI understand the database structure
+        custom_prompt = """
+You are a ChatCVE security analyst AI assistant. You have access to a comprehensive vulnerability database with the following structure:
+
+TABLES:
+1. app_patrol - Contains vulnerability scan results for packages
+   - NAME: Package name 
+   - INSTALLED: Package version
+   - VULNERABILITY: CVE/GHSA ID
+   - SEVERITY: CRITICAL, HIGH, MEDIUM, LOW
+   - IMAGE_TAG: Container image scanned
+   - DATE_ADDED: When the scan was performed
+
+2. scan_metadata - Contains comprehensive scan session information
+   Basic Information:
+   - scan_timestamp: When the scan started (primary key)
+   - user_scan_name: User-friendly name for the scan (e.g., "SCAN BUNDLE - PROJECT A")
+   - image_count: Number of images in the scan
+   - created_at: When the scan record was created
+   
+   Performance & Statistics:
+   - scan_duration: Total scan time in seconds
+   - total_packages_scanned: Total packages analyzed across all images
+   - total_vulnerabilities_found: Total vulnerabilities discovered
+   - scan_status: SUCCESS, FAILED, or PARTIAL
+   - scan_type: FULL, INCREMENTAL, or RESCAN
+   
+   Technical Details:
+   - syft_version: Version of Syft SBOM tool used
+   - grype_version: Version of Grype vulnerability scanner used
+   - scan_engine: DOCKER_PULL or REGISTRY_API (scanning method)
+   - scan_source: FILE_UPLOAD, MANUAL_INPUT, or API (how scan was initiated)
+   
+   Security Insights:
+   - risk_score: Calculated risk score (0-100)
+   - critical_count: Number of critical vulnerabilities
+   - high_count: Number of high severity vulnerabilities  
+   - medium_count: Number of medium severity vulnerabilities
+   - low_count: Number of low severity vulnerabilities
+   - exploitable_count: Number of actively exploitable CVEs
+   
+   Compliance & Tracking:
+   - scan_initiator: Username/system that started the scan
+   - compliance_policy: Applied security policy (optional)
+   - scan_tags: JSON array of tags for categorization
+   - project_name: Associated project name (optional)
+   - environment: PRODUCTION, STAGING, or DEVELOPMENT (optional)
+
+3. scan_details (VIEW) - Joins app_patrol and scan_metadata
+   - All columns from both tables, linked by timestamp
+   - Use this view when users ask about scans by name or need comprehensive scan information
+
+IMPORTANT RELATIONSHIPS:
+- To find scans by name, use scan_metadata or scan_details view
+- To get vulnerability details, use app_patrol or scan_details view
+- Scans are linked by matching substr(DATE_ADDED, 1, 19) = substr(scan_timestamp, 1, 19)
+- scan_tags is stored as JSON text - use json_extract() to query specific tags
+
+COMMON QUERIES:
+- Scan performance: Use scan_duration, total_packages_scanned from scan_metadata
+- Risk analysis: Use risk_score, exploitable_count, severity counts from scan_metadata
+- Project tracking: Use project_name, environment, scan_initiator from scan_metadata
+- Technical details: Use tool versions, scan_engine, scan_source from scan_metadata
+
+When users ask about "scans" or "scan bundles", they're referring to the user_scan_name field in scan_metadata.
+For performance questions, focus on scan_duration, total_packages_scanned, and severity breakdowns.
+For risk questions, emphasize risk_score, exploitable_count, and critical/high severity vulnerabilities.
+"""
+
         agent_executor = create_sql_agent(
             llm=llm,
             toolkit=toolkit,
             verbose=True,
             agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-            handle_parsing_errors=True
+            handle_parsing_errors=True,
+            prefix=custom_prompt
         )
         
         print("ChatCVE AI agent initialized successfully")
@@ -211,7 +281,7 @@ def get_recent_activity():
                 COUNT(CASE WHEN ap.SEVERITY = 'CRITICAL' AND (ap.VULNERABILITY LIKE 'CVE-%' OR ap.VULNERABILITY LIKE 'GHSA-%') THEN 1 END) as critical,
                 COUNT(CASE WHEN ap.SEVERITY = 'HIGH' AND (ap.VULNERABILITY LIKE 'CVE-%' OR ap.VULNERABILITY LIKE 'GHSA-%') THEN 1 END) as high
             FROM scan_metadata sm
-            LEFT JOIN app_patrol ap ON substr(ap.DATE_ADDED, 1, 15) = substr(sm.scan_timestamp, 1, 15)
+            LEFT JOIN app_patrol ap ON substr(ap.DATE_ADDED, 1, 19) = substr(sm.scan_timestamp, 1, 19)
             GROUP BY sm.scan_timestamp, sm.user_scan_name, sm.image_count
             ORDER BY sm.scan_timestamp DESC
             LIMIT 10
@@ -280,14 +350,50 @@ def get_scans():
         
         cursor = conn.cursor()
         
-        # First get scan metadata
+        # First get comprehensive scan metadata
         cursor.execute("""
-            SELECT scan_timestamp, user_scan_name 
+            SELECT 
+                scan_timestamp, user_scan_name, image_count,
+                scan_duration, total_packages_scanned, total_vulnerabilities_found,
+                scan_status, scan_type, syft_version, grype_version,
+                scan_engine, scan_source, risk_score, critical_count,
+                high_count, medium_count, low_count, exploitable_count,
+                scan_initiator, compliance_policy, scan_tags, project_name, environment,
+                created_at
             FROM scan_metadata 
             ORDER BY scan_timestamp DESC
         """)
         metadata_results = cursor.fetchall()
-        scan_names_map = {row[0][:15]: row[1] for row in metadata_results}
+        
+        # Create comprehensive metadata map
+        metadata_map = {}
+        for row in metadata_results:
+            timestamp = row[0][:19]  # Use 19 chars for better precision
+            metadata_map[timestamp] = {
+                'user_scan_name': row[1],
+                'image_count': row[2],
+                'scan_duration': row[3],
+                'total_packages_scanned': row[4],
+                'total_vulnerabilities_found': row[5],
+                'scan_status': row[6],
+                'scan_type': row[7],
+                'syft_version': row[8],
+                'grype_version': row[9],
+                'scan_engine': row[10],
+                'scan_source': row[11],
+                'risk_score': row[12],
+                'critical_count': row[13],
+                'high_count': row[14],
+                'medium_count': row[15],
+                'low_count': row[16],
+                'exploitable_count': row[17],
+                'scan_initiator': row[18],
+                'compliance_policy': row[19],
+                'scan_tags': json.loads(row[20]) if row[20] else [],
+                'project_name': row[21],
+                'environment': row[22],
+                'created_at': row[23]
+            }
         
         # Then get scan sessions 
         cursor.execute("""
@@ -304,7 +410,7 @@ def get_scans():
                 COUNT(*) as total_records
             FROM app_patrol ap
             WHERE ap.DATE_ADDED IS NOT NULL
-            GROUP BY substr(ap.DATE_ADDED, 1, 15)
+            GROUP BY substr(ap.DATE_ADDED, 1, 19)
             ORDER BY scan_date DESC
             LIMIT 50
         """)
@@ -315,28 +421,55 @@ def get_scans():
         scans = []
         for row in results:
             scan_date, images, vulnerabilities, critical, high, medium, low, image_count, total_packages, total_records = row
-            # Look up user-supplied name from the map
-            time_key = scan_date[:15]
-            user_scan_name = scan_names_map.get(time_key)
-            # Use user-supplied name if available, otherwise fall back to auto-generated name
+            # Look up comprehensive metadata
+            time_key = scan_date[:19]
+            metadata = metadata_map.get(time_key, {})
+            
+            # Use metadata values if available, otherwise fall back to calculated values
+            user_scan_name = metadata.get('user_scan_name')
             scan_name = user_scan_name if user_scan_name else f"Scan {scan_date[:10]} {scan_date[11:16]} - {image_count} images"
+            
             # Get the first image for display
             first_image = images.split(',')[0] if images else 'Unknown'
+            
+            # Use metadata counts if available, otherwise use calculated values
+            final_critical = metadata.get('critical_count', critical or 0)
+            final_high = metadata.get('high_count', high or 0)
+            final_medium = metadata.get('medium_count', medium or 0)
+            final_low = metadata.get('low_count', low or 0)
+            final_vulns = metadata.get('total_vulnerabilities_found', vulnerabilities or 0)
+            final_packages = metadata.get('total_packages_scanned', total_packages or 0)
+            
             scans.append({
                 'id': f"scan_{hash(scan_date)}",
                 'image': first_image,
                 'images': images.split(',') if images else [],
                 'timestamp': scan_date,
-                'status': 'completed',
-                'vulnerabilities': vulnerabilities or 0,
-                'critical': critical or 0,
-                'high': high or 0,
-                'medium': medium or 0,
-                'low': low or 0,
+                'status': metadata.get('scan_status', 'completed').lower(),
+                'vulnerabilities': final_vulns,
+                'critical': final_critical,
+                'high': final_high,
+                'medium': final_medium,
+                'low': final_low,
                 'image_count': image_count,
-                'packages': total_packages or 0,  # Real package count
+                'packages': final_packages,
                 'name': scan_name,
-                'user_scan_name': user_scan_name  # For debugging
+                'user_scan_name': user_scan_name,
+                # New metadata fields
+                'scan_duration': metadata.get('scan_duration', 0),
+                'scan_type': metadata.get('scan_type', 'FULL'),
+                'syft_version': metadata.get('syft_version'),
+                'grype_version': metadata.get('grype_version'),
+                'scan_engine': metadata.get('scan_engine', 'DOCKER_PULL'),
+                'scan_source': metadata.get('scan_source', 'FILE_UPLOAD'),
+                'risk_score': metadata.get('risk_score', 0.0),
+                'exploitable_count': metadata.get('exploitable_count', 0),
+                'scan_initiator': metadata.get('scan_initiator', 'system'),
+                'compliance_policy': metadata.get('compliance_policy'),
+                'scan_tags': metadata.get('scan_tags', []),
+                'project_name': metadata.get('project_name'),
+                'environment': metadata.get('environment'),
+                'created_at': metadata.get('created_at')
             })
         
         return jsonify(scans)
@@ -360,7 +493,7 @@ def delete_scan(scan_id):
             SELECT MIN(ap.DATE_ADDED) as scan_date
             FROM app_patrol ap
             WHERE ap.DATE_ADDED IS NOT NULL
-            GROUP BY substr(ap.DATE_ADDED, 1, 15)
+            GROUP BY substr(ap.DATE_ADDED, 1, 19)
             ORDER BY scan_date DESC
             LIMIT 50
         """)
@@ -379,13 +512,13 @@ def delete_scan(scan_id):
         # Delete from app_patrol table
         cursor.execute("""
             DELETE FROM app_patrol 
-            WHERE substr(DATE_ADDED, 1, 15) = ?
+            WHERE substr(DATE_ADDED, 1, 19) = ?
         """, (target_timestamp,))
         
         # Delete from scan_metadata table
         cursor.execute("""
             DELETE FROM scan_metadata 
-            WHERE substr(scan_timestamp, 1, 15) = ?
+            WHERE substr(scan_timestamp, 1, 19) = ?
         """, (target_timestamp,))
         
         conn.commit()
@@ -411,10 +544,10 @@ def get_scan_images(scan_id):
         cursor.execute("""
             SELECT 
                 MIN(ap.DATE_ADDED) as scan_date,
-                substr(ap.DATE_ADDED, 1, 15) as time_group
+                substr(ap.DATE_ADDED, 1, 19) as time_group
             FROM app_patrol ap
             WHERE ap.DATE_ADDED IS NOT NULL
-            GROUP BY substr(ap.DATE_ADDED, 1, 15)
+            GROUP BY substr(ap.DATE_ADDED, 1, 19)
             ORDER BY scan_date DESC
             LIMIT 50
         """)
@@ -441,7 +574,7 @@ def get_scan_images(scan_id):
                 COUNT(CASE WHEN (ap.VULNERABILITY LIKE 'CVE-%' OR ap.VULNERABILITY LIKE 'GHSA-%') AND ap.SEVERITY = 'MEDIUM' THEN 1 END) as medium,
                 COUNT(CASE WHEN (ap.VULNERABILITY LIKE 'CVE-%' OR ap.VULNERABILITY LIKE 'GHSA-%') AND ap.SEVERITY = 'LOW' THEN 1 END) as low
             FROM app_patrol ap
-            WHERE substr(ap.DATE_ADDED, 1, 15) = ?
+            WHERE substr(ap.DATE_ADDED, 1, 19) = ?
             GROUP BY ap.IMAGE_TAG
         """, (target_time_group,))
         
@@ -481,10 +614,10 @@ def get_image_vulnerabilities(scan_id, image_name):
         cursor.execute("""
             SELECT 
                 MIN(ap.DATE_ADDED) as scan_date,
-                substr(ap.DATE_ADDED, 1, 15) as time_group
+                substr(ap.DATE_ADDED, 1, 19) as time_group
             FROM app_patrol ap
             WHERE ap.DATE_ADDED IS NOT NULL
-            GROUP BY substr(ap.DATE_ADDED, 1, 15)
+            GROUP BY substr(ap.DATE_ADDED, 1, 19)
             ORDER BY scan_date DESC
             LIMIT 50
         """)
@@ -508,7 +641,7 @@ def get_image_vulnerabilities(scan_id, image_name):
                 ap.NAME as package_name,
                 ap.INSTALLED as package_version
             FROM app_patrol ap
-            WHERE substr(ap.DATE_ADDED, 1, 15) = ?
+            WHERE substr(ap.DATE_ADDED, 1, 19) = ?
             AND ap.IMAGE_TAG = ?
             AND (ap.VULNERABILITY LIKE 'CVE-%' OR ap.VULNERABILITY LIKE 'GHSA-%')
             ORDER BY ap.SEVERITY DESC, ap.VULNERABILITY
@@ -662,19 +795,46 @@ def start_scan():
         targets = data.get('targets', [])
         scan_type = data.get('type', 'container')
         
+        # Extract additional metadata from request
+        scan_initiator = data.get('scan_initiator', 'user')
+        project_name = data.get('project_name')
+        environment = data.get('environment')
+        scan_tags = data.get('scan_tags', [])
+        compliance_policy = data.get('compliance_policy')
+        
         if not targets:
             return jsonify({'error': 'No targets provided'}), 400
+        
+        # Check if scan name already exists
+        try:
+            conn = sqlite3.connect('../app_patrol.db')
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM scan_metadata WHERE user_scan_name = ?", (scan_name,))
+            count = cursor.fetchone()[0]
+            conn.close()
+            
+            if count > 0:
+                return jsonify({'error': f'Scan name "{scan_name}" already exists. Please choose a different name.'}), 400
+        except Exception as e:
+            print(f"Error checking scan name: {e}")
+            return jsonify({'error': 'Failed to validate scan name'}), 500
         
         # Generate unique scan ID
         scan_id = f"scan-{int(datetime.now().timestamp())}"
         
         print(f"Starting real scan: {scan_name} with {len(targets)} targets")
         
-        # Start the scan asynchronously
+        # Start the scan asynchronously with metadata
         def run_scan():
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
-            loop.run_until_complete(scanner.start_scan(scan_id, scan_name, targets))
+            loop.run_until_complete(scanner.start_scan(
+                scan_id, scan_name, targets,
+                scan_initiator=scan_initiator,
+                project_name=project_name,
+                environment=environment,
+                scan_tags=scan_tags
+            ))
             loop.close()
         
         import threading

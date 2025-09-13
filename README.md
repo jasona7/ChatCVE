@@ -40,6 +40,11 @@ ChatCVE is a comprehensive AI-powered DevSecOps platform that helps security tea
 - **Live Scanning** - Real-time progress meters and streaming logs during scans
 - **Image Drill-Down** - Click on images to view specific vulnerabilities and packages
 - **Enhanced Chat** - Clear chat button, improved error handling, and better AI responses
+- **📊 Rich Scan Metadata** - Comprehensive performance metrics, technical details, and security insights
+- **🎯 Exploitable CVE Detection** - Intelligent identification of actively exploitable vulnerabilities
+- **⚡ Performance Analytics** - Scan duration tracking, package analysis metrics, and efficiency monitoring
+- **🔧 Technical Provenance** - Tool versioning, scan engine tracking, and reproducibility metadata
+- **📈 Risk Assessment** - Advanced risk scoring algorithms with contextual security insights
 
 ## 📋 Prerequisites
 
@@ -180,6 +185,113 @@ In-depth security analysis capabilities:
 - **Package Breakdown**: See specific packages and their vulnerabilities
 - **Severity Classification**: Color-coded severity levels with counts
 - **Export Capabilities**: Save scan results to JSON for reporting
+- **📊 Rich Metadata Display**: Performance metrics, risk scores, and technical details
+- **🎯 Exploitable CVE Identification**: Highlights actively exploitable vulnerabilities
+- **⏱️ Scan Performance Tracking**: Duration, package counts, and efficiency metrics
+- **🔧 Technical Provenance**: Tool versions, scan engines, and reproducibility data
+
+## 📊 Security Scoring & Risk Assessment
+
+### 🎯 **Security Score Calculation**
+
+ChatCVE uses an advanced weighted scoring algorithm to calculate risk scores on a 0-100 scale:
+
+```python
+# Risk Score Algorithm
+def calculate_risk_score(vulnerabilities):
+    total_score = 0.0
+    total_packages = sum(result['packages'] for result in results)
+    
+    for result in results:
+        severity_counts = result['severity_counts']
+        # Weight vulnerabilities by severity
+        score = (
+            severity_counts['critical'] * 10.0 +
+            severity_counts['high'] * 7.5 +
+            severity_counts['medium'] * 5.0 +
+            severity_counts['low'] * 2.5
+        )
+        total_score += score
+    
+    # Normalize by package count (risk per package * 10)
+    return min(total_score / total_packages * 10, 100.0)
+```
+
+#### **Scoring Breakdown:**
+- **Critical Vulnerabilities**: 10.0 points each
+- **High Vulnerabilities**: 7.5 points each  
+- **Medium Vulnerabilities**: 5.0 points each
+- **Low Vulnerabilities**: 2.5 points each
+- **Final Score**: Normalized per package and scaled (0-100)
+
+#### **Risk Categories:**
+- 🟢 **Low Risk (0-40)**: Well-maintained images with minimal security issues
+- 🟡 **Medium Risk (40-70)**: Some security concerns requiring attention
+- 🔴 **High Risk (70-100)**: Critical security issues requiring immediate action
+
+### 🎯 **Exploitable CVE Detection**
+
+ChatCVE intelligently identifies potentially exploitable vulnerabilities:
+
+```python
+# Exploitable CVE Logic
+def calculate_exploitable_count(vulnerabilities):
+    exploitable_count = 0
+    for vuln in vulnerabilities:
+        severity = vuln.get('severity', '').lower()
+        # Consider Critical/High as potentially exploitable
+        if severity in ['critical', 'high']:
+            exploitable_count += 1
+    return exploitable_count
+```
+
+#### **Exploitability Criteria:**
+- **Critical Severity**: Automatically flagged as exploitable
+- **High Severity**: Considered potentially exploitable
+- **CVSS Score**: Future enhancement for more precise detection
+- **Known Exploits**: Future integration with exploit databases
+
+### 📈 **Scan Metadata Collection**
+
+Every scan captures comprehensive metadata for analysis:
+
+#### **Performance Metrics:**
+- **Scan Duration**: Total time from start to completion (seconds)
+- **Total Packages**: Aggregate package count across all images
+- **Total Vulnerabilities**: Sum of all vulnerabilities found
+- **Images Processed**: Number of container images analyzed
+
+#### **Technical Details:**
+- **Syft Version**: SBOM generation tool version for reproducibility
+- **Grype Version**: Vulnerability scanner version for reproducibility
+- **Scan Engine**: DOCKER_PULL vs REGISTRY_API method used
+- **Scan Source**: FILE_UPLOAD, MANUAL_INPUT, or API initiation
+
+#### **Security Insights:**
+- **Risk Score**: Calculated 0-100 risk assessment
+- **Severity Breakdown**: Critical, High, Medium, Low counts
+- **Exploitable Count**: Number of potentially exploitable CVEs
+- **Package Density**: Vulnerabilities per package ratio
+
+#### **Contextual Information:**
+- **Scan Initiator**: User or system that started the scan
+- **Project Name**: Associated project for organizational tracking
+- **Environment**: PRODUCTION, STAGING, or DEVELOPMENT context
+- **Tags**: Custom categorization labels for scan grouping
+- **Compliance Policy**: Applied security policy (future feature)
+
+### 🤖 **AI-Enhanced Analysis**
+
+The AI chat interface can now answer sophisticated questions about your scan metadata:
+
+```sql
+-- Example AI Queries:
+"Which scans took longer than 5 minutes?"
+"Show me high-risk scans from production environment"
+"What's the average vulnerability count per package?"
+"Which projects have the most exploitable CVEs?"
+"Compare scan performance over the last week"
+```
 
 ## 🔧 Configuration
 
@@ -264,10 +376,35 @@ npm run dev
 - `GET /api/activity/recent` - Recent scan activity
 
 ### Scan Management
-- `GET /api/scans/{id}/progress` - Scan progress
-- `GET /api/scans/{id}/logs` - Scan logs
-- `GET /api/scans/{id}/images` - Scan images
-- `GET /api/scans/{id}/images/{image}/vulnerabilities` - Image vulnerabilities
+- `GET /api/scans/{id}/progress` - Scan progress with metadata
+- `GET /api/scans/{id}/logs` - Real-time scan logs
+- `GET /api/scans/{id}/images` - Scan images with vulnerability counts
+- `GET /api/scans/{id}/images/{image}/vulnerabilities` - Detailed image vulnerabilities
+
+### Enhanced Scan Data Structure
+```json
+{
+  "id": "scan_123456789",
+  "name": "Production EKS Scan",
+  "status": "completed",
+  "vulnerabilities": 42,
+  "packages": 489,
+  "scan_duration": 17,
+  "risk_score": 3.5,
+  "exploitable_count": 3,
+  "critical_count": 2,
+  "high_count": 8,
+  "medium_count": 15,
+  "low_count": 17,
+  "syft_version": "syft 1.12.0",
+  "grype_version": "grype 0.83.0",
+  "scan_engine": "DOCKER_PULL",
+  "scan_source": "FILE_UPLOAD",
+  "project_name": "EKS Cluster",
+  "environment": "PRODUCTION",
+  "scan_initiator": "security-team"
+}
+```
 
 ## 🚨 Troubleshooting
 
@@ -308,6 +445,9 @@ rm app_patrol.db
 2. Ensure all prerequisites are installed with `./check-prerequisites.sh`
 3. Verify Docker is running: `docker ps`
 4. Check API connectivity: `curl http://localhost:5000/health`
+5. **Use AI Chat**: Ask questions about scan metadata, performance, or security insights
+6. **Check Scan Metadata**: Expand scan details to see comprehensive performance and security metrics
+7. **Monitor Risk Scores**: Use the security scoring to prioritize remediation efforts
 
 ## 🤝 Contributing
 

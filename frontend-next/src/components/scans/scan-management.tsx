@@ -17,17 +17,19 @@ import {
   Eye, 
   Download,
   Upload,
-  Globe,
   Trash2,
   FileDown,
   FileText,
-  Container,
   Calendar,
   Clock,
   Shield,
   X,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  Settings,
+  User,
+  Package,
+  Container
 } from 'lucide-react'
 import { format } from 'date-fns'
 
@@ -39,7 +41,7 @@ interface ScanDetail {
   status: 'completed' | 'running' | 'failed'
   vulnerabilities: number
   packages: number
-  scanType: 'container' | 'repository' | 'file'
+  scanType: 'file'
   source: string
   duration: string
   size: string
@@ -86,7 +88,7 @@ export function ScanManagement() {
   const [selectedScan, setSelectedScan] = useState<ScanDetail | null>(null)
   const [showNewScan, setShowNewScan] = useState(false)
   const [newScanConfig, setNewScanConfig] = useState({
-    source: 'container',
+    source: 'file',
     target: '',
     name: ''
   })
@@ -98,10 +100,58 @@ export function ScanManagement() {
   const [expandedScan, setExpandedScan] = useState<string | null>(null)
   const [selectedScans, setSelectedScans] = useState<Set<string>>(new Set())
   const [showFilters, setShowFilters] = useState(false)
+  const [nameValidationError, setNameValidationError] = useState<string | null>(null)
+  const [isCheckingName, setIsCheckingName] = useState(false)
 
   useEffect(() => {
     loadScans()
   }, [])
+
+  // Debounced name validation
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (newScanConfig.name) {
+        validateScanName(newScanConfig.name)
+      }
+    }, 500) // 500ms delay
+
+    return () => clearTimeout(timeoutId)
+  }, [newScanConfig.name, scans])
+
+  const closeNewScanDialog = () => {
+    setShowNewScan(false)
+    setUploadedFile(null)
+    setFilePreview([])
+    setNewScanConfig({
+      source: 'file',
+      target: '',
+      name: ''
+    })
+    setNameValidationError(null)
+    setIsCheckingName(false)
+  }
+
+  const validateScanName = async (name: string) => {
+    if (!name.trim()) {
+      setNameValidationError(null)
+      return
+    }
+
+    setIsCheckingName(true)
+    try {
+      // Check against existing scans (only completed scans, not active ones)
+      const existingNames = scans.map(scan => scan.name.toLowerCase())
+      if (existingNames.includes(name.toLowerCase())) {
+        setNameValidationError('A scan with this name already exists')
+      } else {
+        setNameValidationError(null)
+      }
+    } catch (error) {
+      console.error('Error validating scan name:', error)
+    } finally {
+      setIsCheckingName(false)
+    }
+  }
 
   const deleteScan = async (scanId: string) => {
     if (!confirm('Are you sure you want to delete this scan? This action cannot be undone.')) {
@@ -199,7 +249,7 @@ export function ScanManagement() {
         ...scan,
         // Use real package count from API, fallback to 0 if not available
         packages: scan.packages || 0,
-        scanType: (['container', 'repository', 'file'] as const)[Math.floor(Math.random() * 3)],
+                scanType: 'file' as const,
         source: scan.image,
         duration: `${Math.floor(Math.random() * 5) + 1}m ${Math.floor(Math.random() * 60)}s`,
         size: `${Math.floor(Math.random() * 500) + 50}MB`,
@@ -220,26 +270,26 @@ export function ScanManagement() {
   }
 
   // Combine active scans with historical scans
-  const activeScansArray = Array.from(activeScans.values()).map(activeScan => ({
-    id: activeScan.id,
-    name: activeScan.name,
-    image: activeScan.targets[0] || 'Multiple targets',
-    timestamp: activeScan.startTime.toISOString(),
-    status: activeScan.status as 'completed' | 'running' | 'failed',
-    vulnerabilities: 0, // Will be updated when scan completes
-    packages: 0,
-    scanType: 'container' as const,
-    source: activeScan.targets[0] || 'Multiple',
-    duration: '0s',
-    size: '0MB',
-    details: {
-      critical: 0,
-      high: 0,
-      medium: 0,
-      low: 0,
-      packages: []
-    }
-  }))
+    const activeScansArray = Array.from(activeScans.values()).map(activeScan => ({
+      id: activeScan.id,
+      name: activeScan.name,
+      image: activeScan.targets[0] || 'Multiple targets',
+      timestamp: activeScan.startTime.toISOString(),
+      status: activeScan.status as 'completed' | 'running' | 'failed',
+      vulnerabilities: 0, // Will be updated when scan completes
+      packages: 0,
+      scanType: 'file' as const,
+      source: activeScan.targets[0] || 'Multiple',
+      duration: '0s',
+      size: '0MB',
+      details: {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        packages: []
+      }
+    }))
 
   const allScans = [...activeScansArray, ...scans]
   
@@ -279,11 +329,53 @@ export function ScanManagement() {
 
     return (
       <div className="mt-4 border-t pt-4">
+        {/* Live Scan Progress Summary */}
+        <div className="mb-4 p-3 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-lg border border-green-200 dark:border-green-800">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-medium text-sm flex items-center gap-2">
+              <div className="animate-pulse w-2 h-2 bg-green-500 rounded-full"></div>
+              Live Scan Progress
+            </h4>
+            <Badge variant="secondary" className="bg-white dark:bg-gray-800">
+              {activeScan.status.toUpperCase()}
+            </Badge>
+          </div>
+          
+          <div className="grid grid-cols-3 gap-4 text-center text-xs">
+            <div>
+              <div className="font-bold text-blue-700 dark:text-blue-300">
+                {Math.floor((Date.now() - activeScan.startTime.getTime()) / 1000)}s
+              </div>
+              <div className="text-blue-600 dark:text-blue-400">Elapsed</div>
+            </div>
+            <div>
+              <div className="font-bold text-green-700 dark:text-green-300">
+                {activeScan.completedTargets || 0}/{activeScan.totalTargets || 0}
+              </div>
+              <div className="text-green-600 dark:text-green-400">Images</div>
+            </div>
+            <div>
+              <div className="font-bold text-purple-700 dark:text-purple-300">
+                {activeScan.progress || 0}%
+              </div>
+              <div className="text-purple-600 dark:text-purple-400">Complete</div>
+            </div>
+          </div>
+          
+          {activeScan.currentStep && (
+            <div className="mt-2 pt-2 border-t border-green-200 dark:border-green-700">
+              <div className="text-xs text-green-700 dark:text-green-300 truncate">
+                🔄 {activeScan.currentStep}
+              </div>
+            </div>
+          )}
+        </div>
+        
         <div className="flex items-center justify-between mb-3">
-          <h4 className="font-medium text-sm">Live Scan Logs</h4>
+          <h4 className="font-medium text-sm">Detailed Logs</h4>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
-            {Math.floor((Date.now() - activeScan.startTime.getTime()) / 1000)}s elapsed
+            Real-time updates
           </div>
         </div>
         
@@ -328,12 +420,7 @@ export function ScanManagement() {
   }
 
   const getScanTypeIcon = (type: string) => {
-    switch (type) {
-      case 'container': return Container
-      case 'repository': return Globe
-      case 'file': return FileText
-      default: return Container
-    }
+    return FileText // Only file-based scans now
   }
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -391,13 +478,9 @@ export function ScanManagement() {
 
   const startNewScan = async () => {
     try {
-      // Determine targets based on scan type
+      // Only file-based scans are supported
       let targets: string[] = []
-      if (newScanConfig.source === 'container') {
-        targets = [newScanConfig.target]
-      } else if (newScanConfig.source === 'repository') {
-        targets = [newScanConfig.target]
-      } else if (newScanConfig.source === 'file' && uploadedFile) {
+      if (newScanConfig.source === 'file' && uploadedFile) {
         targets = filePreview
       }
       
@@ -420,7 +503,8 @@ export function ScanManagement() {
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to start scan: ${response.statusText}`)
+        const errorData = await response.json().catch(() => ({ error: response.statusText }))
+        throw new Error(errorData.error || `Failed to start scan: ${response.statusText}`)
       }
       
       const result = await response.json()
@@ -436,8 +520,8 @@ export function ScanManagement() {
         logs: [{
           timestamp: new Date(),
           level: 'info',
-          message: `Started real registry-based scan: ${newScanConfig.name}`,
-          details: `Targets: ${targets.length} ${newScanConfig.source === 'file' ? 'container images' : 'target'}`
+          message: `Started container image scan: ${newScanConfig.name}`,
+          details: `Targets: ${targets.length} container images`
         }],
         startTime: new Date(),
         targets,
@@ -449,14 +533,7 @@ export function ScanManagement() {
       setActiveScans(prev => new Map(prev.set(scanId, scanProgress)))
       
       // Close the new scan dialog
-      setShowNewScan(false)
-      setUploadedFile(null)
-      setFilePreview([])
-      setNewScanConfig({
-        source: 'container',
-        target: '',
-        name: ''
-      })
+      closeNewScanDialog()
       
       // Start polling for real scan progress
       pollScanProgress(scanId)
@@ -631,8 +708,46 @@ export function ScanManagement() {
       align: 'center' as const,
       render: (scan) => (
         <div className="text-center">
-          <div className="font-medium">{scan.packages}</div>
-          <div className="text-xs text-muted-foreground">{scan.duration}</div>
+          <div className="font-medium">{scan.packages || scan.total_packages_scanned || 0}</div>
+          <div className="text-xs text-muted-foreground">
+            {scan.scan_duration ? `${Math.floor(scan.scan_duration / 60)}m ${scan.scan_duration % 60}s` : 'N/A'}
+          </div>
+        </div>
+      )
+    },
+    {
+      key: 'metadata',
+      label: 'Details',
+      sortable: false,
+      width: 'col-span-2',
+      align: 'left' as const,
+      render: (scan) => (
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            {scan.risk_score !== undefined && (
+              <Badge variant="outline" className="text-xs">
+                Risk: {scan.risk_score.toFixed(1)}/100
+              </Badge>
+            )}
+            {scan.exploitable_count !== undefined && scan.exploitable_count > 0 && (
+              <Badge variant="destructive" className="text-xs">
+                {scan.exploitable_count} exploitable
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {scan.project_name && (
+              <span>📁 {scan.project_name}</span>
+            )}
+            {scan.environment && (
+              <Badge variant="outline" className="text-xs">
+                {scan.environment}
+              </Badge>
+            )}
+            {scan.scan_initiator && scan.scan_initiator !== 'system' && (
+              <span>👤 {scan.scan_initiator}</span>
+            )}
+          </div>
         </div>
       )
     },
@@ -712,6 +827,43 @@ export function ScanManagement() {
                 <div>
                   <div className="text-2xl font-bold">{selectedScan.vulnerabilities}</div>
                   <div className="text-xs text-muted-foreground">Total Vulnerabilities</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <div className="text-2xl font-bold">
+                    {selectedScan.scan_duration ? `${Math.floor(selectedScan.scan_duration / 60)}m` : 'N/A'}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Scan Duration</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <div className="text-2xl font-bold">
+                    {selectedScan.risk_score ? selectedScan.risk_score.toFixed(1) : 'N/A'}
+                  </div>
+                  <div className="text-xs text-muted-foreground">Risk Score</div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <div className="text-2xl font-bold">{selectedScan.packages || selectedScan.total_packages_scanned || 0}</div>
+                  <div className="text-xs text-muted-foreground">Packages Scanned</div>
                 </div>
               </div>
             </CardContent>
@@ -832,12 +984,12 @@ export function ScanManagement() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => setShowNewScan(false)}>
+            <Button variant="ghost" size="sm" onClick={closeNewScanDialog}>
               <X className="h-4 w-4" />
             </Button>
             <div>
               <h2 className="text-2xl font-bold">New Scan</h2>
-              <p className="text-muted-foreground">Configure a new vulnerability scan</p>
+              <p className="text-muted-foreground">Upload a text file with container images to scan</p>
             </div>
           </div>
         </div>
@@ -845,118 +997,28 @@ export function ScanManagement() {
         <Card>
           <CardHeader>
             <CardTitle>Scan Configuration</CardTitle>
-            <CardDescription>Choose your scan source and target</CardDescription>
+            <CardDescription>Upload a text file containing container images to scan</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Source Type Selection */}
+            {/* Simplified - File Upload Only */}
             <div>
-              <label className="text-sm font-medium mb-3 block">Scan Source</label>
-              <div className="grid gap-3 md:grid-cols-3">
-                <Card 
-                  className={`cursor-pointer transition-all border-2 hover:shadow-md ${
-                    newScanConfig.source === 'container' 
-                      ? 'border-primary bg-primary/10 shadow-lg' 
-                      : 'border-muted hover:border-primary/50'
-                  }`}
-                  onClick={() => {
-                    setNewScanConfig({...newScanConfig, source: 'container', target: ''})
-                    setUploadedFile(null)
-                    setFilePreview([])
-                  }}
-                >
-                  <CardContent className="pt-6">
-                    <div className="flex flex-col items-center text-center gap-2">
-                      <Container className={`h-8 w-8 ${newScanConfig.source === 'container' ? 'text-primary' : 'text-muted-foreground'}`} />
-                      <div className="font-medium">Container Image</div>
-                      <div className="text-xs text-muted-foreground">Scan Docker images from registries</div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className={`cursor-pointer transition-all border-2 hover:shadow-md ${
-                    newScanConfig.source === 'repository' 
-                      ? 'border-primary bg-primary/10 shadow-lg' 
-                      : 'border-muted hover:border-primary/50'
-                  }`}
-                  onClick={() => {
-                    setNewScanConfig({...newScanConfig, source: 'repository', target: ''})
-                    setUploadedFile(null)
-                    setFilePreview([])
-                  }}
-                >
-                  <CardContent className="pt-6">
-                    <div className="flex flex-col items-center text-center gap-2">
-                      <Globe className={`h-8 w-8 ${newScanConfig.source === 'repository' ? 'text-primary' : 'text-muted-foreground'}`} />
-                      <div className="font-medium">Git Repository</div>
-                      <div className="text-xs text-muted-foreground">Scan source code repositories</div>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className={`cursor-pointer transition-all border-2 hover:shadow-md ${
-                    newScanConfig.source === 'file' 
-                      ? 'border-primary bg-primary/10 shadow-lg' 
-                      : 'border-muted hover:border-primary/50'
-                  }`}
-                  onClick={() => {
-                    setNewScanConfig({...newScanConfig, source: 'file', target: ''})
-                    setUploadedFile(null)
-                    setFilePreview([])
-                  }}
-                >
-                  <CardContent className="pt-6">
-                    <div className="flex flex-col items-center text-center gap-2">
-                      <FileText className={`h-8 w-8 ${newScanConfig.source === 'file' ? 'text-primary' : 'text-muted-foreground'}`} />
-                      <div className="font-medium">Text File</div>
-                      <div className="text-xs text-muted-foreground">Upload text file with container images</div>
-                    </div>
-                  </CardContent>
-                </Card>
+              <label className="text-sm font-medium mb-3 block">Container Image Scan</label>
+              <div className="p-4 rounded-lg border-2 border-primary bg-primary/5">
+                <div className="flex items-center gap-3 mb-2">
+                  <FileText className="h-6 w-6 text-primary" />
+                  <div>
+                    <div className="font-medium">Text File Upload</div>
+                    <div className="text-sm text-muted-foreground">Upload a text file containing container images to scan</div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Target Configuration - Wrapped in a selected border */}
-            <div className={`space-y-4 p-4 rounded-lg border-2 transition-all ${
-              newScanConfig.source ? 'border-primary bg-primary/5' : 'border-muted'
-            }`}>
-              <label className="text-sm font-medium">
-                {newScanConfig.source === 'container' && 'Container Image'}
-                {newScanConfig.source === 'repository' && 'Repository URL'}
-                {newScanConfig.source === 'file' && 'Text File Upload'}
-              </label>
+            {/* File Upload Configuration */}
+            <div className="space-y-4 p-4 rounded-lg border-2 border-primary bg-primary/5">
+              <label className="text-sm font-medium">Text File Upload</label>
               
-              {newScanConfig.source === 'container' && (
-                <div>
-                  <Input
-                    placeholder="nginx:latest, registry.example.com/app:v1.0, etc."
-                    value={newScanConfig.target}
-                    onChange={(e) => setNewScanConfig({...newScanConfig, target: e.target.value})}
-                    className="border-2"
-                  />
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Examples: nginx:latest, postgres:14, myregistry.com/app:v1.0
-                  </div>
-                </div>
-              )}
-
-              {newScanConfig.source === 'repository' && (
-                <div>
-                  <Input
-                    placeholder="https://github.com/user/repo.git"
-                    value={newScanConfig.target}
-                    onChange={(e) => setNewScanConfig({...newScanConfig, target: e.target.value})}
-                    className="border-2"
-                  />
-                  <div className="text-xs text-muted-foreground mt-1">
-                    Supports GitHub, GitLab, Bitbucket, and other Git repositories
-                  </div>
-                </div>
-              )}
-
-              {newScanConfig.source === 'file' && (
-                <div 
+              <div 
                   className={`border-2 border-dashed rounded-lg p-8 text-center bg-background transition-all ${
                     dragOver 
                       ? 'border-primary bg-primary/10 scale-105' 
@@ -1030,7 +1092,6 @@ export function ScanManagement() {
                     </>
                   )}
                 </div>
-              )}
             </div>
 
             {/* Preview Section */}
@@ -1041,29 +1102,7 @@ export function ScanManagement() {
                   <label className="text-sm font-medium text-blue-800">Scan Preview</label>
                 </div>
                 
-                {newScanConfig.source === 'container' && newScanConfig.target && (
-                  <div className="space-y-2">
-                    <div className="text-sm text-blue-700">
-                      <strong>Target:</strong> {newScanConfig.target}
-                    </div>
-                    <div className="text-xs text-blue-600">
-                      Will pull and scan container image using Docker, Syft (SBOM) and Grype
-                    </div>
-                  </div>
-                )}
-
-                {newScanConfig.source === 'repository' && newScanConfig.target && (
-                  <div className="space-y-2">
-                    <div className="text-sm text-blue-700">
-                      <strong>Repository:</strong> {newScanConfig.target}
-                    </div>
-                    <div className="text-xs text-blue-600">
-                      Will clone repository and scan source code for dependency vulnerabilities
-                    </div>
-                  </div>
-                )}
-
-                {newScanConfig.source === 'file' && uploadedFile && filePreview.length > 0 && (
+                {uploadedFile && filePreview.length > 0 && (
                   <div className="space-y-3">
                     <div className="text-sm text-blue-700">
                       <strong>File:</strong> {uploadedFile.name} ({filePreview.length} container images)
@@ -1096,24 +1135,37 @@ export function ScanManagement() {
               <Input
                 placeholder="e.g., Production EKS Scan, Weekly Security Audit"
                 value={newScanConfig.name}
-                onChange={(e) => setNewScanConfig({...newScanConfig, name: e.target.value})}
-                className="mt-2 border-2"
+                onChange={(e) => {
+                  setNewScanConfig({...newScanConfig, name: e.target.value})
+                  setNameValidationError(null) // Clear error immediately when user types
+                }}
+                className={`mt-2 border-2 ${nameValidationError ? 'border-red-500' : ''}`}
                 required
               />
-              <div className="text-xs text-muted-foreground mt-1">
-                This name will be displayed in your scan history
-              </div>
+              {nameValidationError && (
+                <div className="text-xs text-red-600 mt-1 flex items-center gap-1">
+                  <AlertTriangle className="h-3 w-3" />
+                  {nameValidationError}
+                </div>
+              )}
+              {isCheckingName && (
+                <div className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  Checking name availability...
+                </div>
+              )}
+              {!nameValidationError && !isCheckingName && newScanConfig.name && (
+                <div className="text-xs text-muted-foreground mt-1">
+                  This name will be displayed in your scan history
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4 border-t border-border pt-6">
               <Button 
                 onClick={startNewScan} 
-                disabled={
-                  !newScanConfig.name || 
-                  (newScanConfig.source !== 'file' && !newScanConfig.target) ||
-                  (newScanConfig.source === 'file' && !uploadedFile)
-                }
+              disabled={!newScanConfig.name || !uploadedFile || nameValidationError || isCheckingName}
                 className="border-2"
                 size="lg"
               >
@@ -1122,7 +1174,7 @@ export function ScanManagement() {
               </Button>
               <Button 
                 variant="outline" 
-                onClick={() => setShowNewScan(false)}
+                onClick={closeNewScanDialog}
                 className="border-2"
                 size="lg"
               >
@@ -1141,7 +1193,7 @@ export function ScanManagement() {
         <div>
           <h2 className="text-2xl font-bold">Scan Management</h2>
           <p className="text-muted-foreground">
-            Manage vulnerability scans and view detailed results
+            Upload text files with container images and manage vulnerability scan results
           </p>
         </div>
         <div className="flex gap-2">
@@ -1194,7 +1246,7 @@ export function ScanManagement() {
           
           // Show images list for completed scans when expanded
           if (!activeScans.has(scan.id) && expandedScan === scan.id && scan.images && scan.images.length > 0) {
-            return <ScanImagesExpanded scanId={scan.id} images={scan.images} />
+            return <ScanImagesExpanded scanId={scan.id} images={scan.images} scan={scan} />
           }
           
           return null
@@ -1245,7 +1297,7 @@ export function ScanManagement() {
 }
 
 // Component to display images with vulnerability counts
-function ScanImagesExpanded({ scanId, images }: { scanId: string, images: string[] }) {
+function ScanImagesExpanded({ scanId, images, scan }: { scanId: string, images: string[], scan: ScanResult }) {
   const [imageDetails, setImageDetails] = useState<Array<{
     image: string
     vulnerabilities: number
@@ -1328,7 +1380,95 @@ function ScanImagesExpanded({ scanId, images }: { scanId: string, images: string
 
   return (
     <div className="mt-4 border-t pt-4">
-      <h4 className="font-medium text-sm mb-3">Scanned Images ({images.length})</h4>
+      {/* Scan Metadata Summary */}
+      <div className="mb-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="font-semibold text-blue-900 dark:text-blue-100">📊 Scan Summary</h4>
+          <Badge variant="outline" className="bg-white dark:bg-gray-800">
+            {scan.scan_status || 'COMPLETED'}
+          </Badge>
+        </div>
+        
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Performance Metrics */}
+          <div className="text-center">
+            <div className="text-lg font-bold text-blue-700 dark:text-blue-300">
+              {scan.scan_duration ? `${Math.floor(scan.scan_duration / 60)}m ${scan.scan_duration % 60}s` : 'N/A'}
+            </div>
+            <div className="text-xs text-blue-600 dark:text-blue-400">Scan Duration</div>
+          </div>
+          
+          <div className="text-center">
+            <div className="text-lg font-bold text-green-700 dark:text-green-300">
+              {scan.total_packages_scanned || scan.packages || 0}
+            </div>
+            <div className="text-xs text-green-600 dark:text-green-400">Packages Analyzed</div>
+          </div>
+          
+          {/* Risk Metrics */}
+          <div className="text-center">
+            <div className={`text-lg font-bold ${
+              (scan.risk_score || 0) > 70 ? 'text-red-700 dark:text-red-300' : 
+              (scan.risk_score || 0) > 40 ? 'text-orange-700 dark:text-orange-300' : 
+              'text-green-700 dark:text-green-300'
+            }`}>
+              {scan.risk_score ? scan.risk_score.toFixed(1) : '0.0'}/100
+            </div>
+            <div className="text-xs text-gray-600 dark:text-gray-400">Risk Score</div>
+          </div>
+          
+          <div className="text-center">
+            <div className={`text-lg font-bold ${
+              (scan.exploitable_count || 0) > 0 ? 'text-red-700 dark:text-red-300' : 'text-green-700 dark:text-green-300'
+            }`}>
+              {scan.exploitable_count || 0}
+            </div>
+            <div className="text-xs text-gray-600 dark:text-gray-400">Exploitable CVEs</div>
+          </div>
+        </div>
+        
+        {/* Technical Details */}
+        <div className="mt-4 pt-3 border-t border-blue-200 dark:border-blue-700">
+          <div className="flex flex-wrap gap-2 text-xs">
+            {scan.scan_engine && (
+              <Badge variant="outline" className="bg-white dark:bg-gray-800">
+                🔧 {scan.scan_engine}
+              </Badge>
+            )}
+            {scan.syft_version && (
+              <Badge variant="outline" className="bg-white dark:bg-gray-800">
+                📦 Syft {scan.syft_version.split(' ')[1] || 'v1.x'}
+              </Badge>
+            )}
+            {scan.grype_version && (
+              <Badge variant="outline" className="bg-white dark:bg-gray-800">
+                🔍 Grype {scan.grype_version.split(' ')[1] || 'v1.x'}
+              </Badge>
+            )}
+            {scan.project_name && (
+              <Badge variant="outline" className="bg-white dark:bg-gray-800">
+                📁 {scan.project_name}
+              </Badge>
+            )}
+            {scan.environment && (
+              <Badge variant={scan.environment === 'PRODUCTION' ? 'destructive' : scan.environment === 'STAGING' ? 'secondary' : 'outline'} className="bg-white dark:bg-gray-800">
+                🌍 {scan.environment}
+              </Badge>
+            )}
+            {scan.scan_initiator && scan.scan_initiator !== 'system' && (
+              <Badge variant="outline" className="bg-white dark:bg-gray-800">
+                👤 {scan.scan_initiator}
+              </Badge>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      {/* Images Section */}
+      <h4 className="font-medium text-sm mb-3 flex items-center gap-2">
+        <Container className="h-4 w-4" />
+        Scanned Images ({images.length})
+      </h4>
       <div className="space-y-2">
         {imageDetails.map((imageDetail, index) => (
           <div key={index} className="space-y-2">

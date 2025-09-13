@@ -123,6 +123,16 @@ test_*.py
 *.test
 *.profile
 *.fingerprint
+scrub-for-public.sh
+
+# Sensitive Data and Logs
+*.log
+*.log.*
+logs/
+ChatCVE_logs.log
+app.log
+flask.log
+scan.log
 
 # Images and Media (keep examples, ignore user uploads)
 .images
