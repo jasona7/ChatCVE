@@ -61,6 +61,7 @@ Before running ChatCVE, ensure you have the following installed on your system:
 
 ### 🔧 **System Dependencies**
 ```bash
+<<<<<<< HEAD
 # Ubuntu/Debian
 sudo apt update
 sudo apt install python3 python3-pip python3-venv nodejs npm git sqlite3 docker.io
@@ -72,6 +73,9 @@ brew install python@3.10 node npm git sqlite docker
 sudo dnf install python3 python3-pip nodejs npm git sqlite docker
 
 # Note: Docker is required for container image scanning
+=======
+git clone https://github.com/jasona7/ChatCVE.git
+>>>>>>> c7063214401f3c6b2702d9d37215697c8b826908
 ```
 
 ### 🔑 **API Keys (Optional but Recommended)**
@@ -111,7 +115,43 @@ npm install
 cd ..
 ```
 
+<<<<<<< HEAD
 ### 5️⃣ **Install Vulnerability Scanning Tools**
+=======
+
+
+## 💻 Usage
+1. Initiate a scan that will kick off the SBOM and CVE artifact creation.  SBOM reports will appear in output/sbom,
+and scan summaries will appear in output/scan_summary.
+``` bash
+python scan.py
+```
+
+2. Initiate an App Patrol scan which will create SBOM records in the SQLite3 backend:
+``` bash
+python fetch_daily_nvd_cves.py
+```
+
+3. Check the SBOM records have been added:
+``` bash
+sqlite3 app_patrol.db
+sqlite> SELECT * FROM app_patrol LIMIT 10;
+tar|1.34+dfsg-1||deb|CVE-2005-2541|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+login|1:4.8.1-1||deb|CVE-2007-5686|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+passwd|1:4.8.1-1||deb|CVE-2007-5686|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+libssl1.1|1.1.1n-0+deb11u3||deb|CVE-2007-6755|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+openssl|1.1.1n-0+deb11u3||deb|CVE-2007-6755|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+jetty-setuid-java|1.0.4||java-archive|CVE-2009-5045|High|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+jetty-setuid-java|1.0.4||java-archive|CVE-2009-5046|Medium|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+libssl1.1|1.1.1n-0+deb11u3||deb|CVE-2010-0928|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+openssl|1.1.1n-0+deb11u3||deb|CVE-2010-0928|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+libc-bin|2.31-13+deb11u3||deb|CVE-2010-4756|Negligible|public.ecr.aws/tanzu_observability_demo_app/to-demo/shopping:latest|2023-05-21 15:01:15
+```
+
+4. Start a Chat-CVE OpenAI SQL Agent session (localhost:5000):
+
+NOTE: Refine guardrails, temperature, etc to improve accuracy and output.
+>>>>>>> c7063214401f3c6b2702d9d37215697c8b826908
 ```bash
 # Install Syft and Grype (required for real scanning)
 ./install-scan-tools.sh
