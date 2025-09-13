@@ -59,14 +59,6 @@ export interface ScanResult {
   created_at?: string
 }
 
-export interface CVEItem {
-  id: string
-  description: string
-  severity: string
-  score: number
-  published: string
-  affected_packages: string[]
-}
 
 export interface ScanMetadata {
   // Performance & Statistics
