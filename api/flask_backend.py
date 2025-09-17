@@ -15,7 +15,7 @@ from scan_service import scanner
 from langchain_openai import ChatOpenAI
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langchain_community.utilities import SQLDatabase
-from langchain.agents import create_sql_agent
+from langchain_community.agent_toolkits.sql.base import create_sql_agent
 from langchain.agents.agent_types import AgentType
 
 app = Flask(__name__)
@@ -29,6 +29,139 @@ OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 llm = None
 agent_executor = None
 chat_history = []
+
+def get_contextual_examples(question: str) -> str:
+    """Generate contextual SQL examples based on question type"""
+    question_lower = question.lower()
+    
+    examples = ""
+    
+    if any(word in question_lower for word in ['scan', 'scans', 'when', 'recent']):
+        examples += """
+
+🔍 SCAN QUERY EXAMPLES:
+Example: "Show me recent scans"
+SQL: SELECT user_scan_name, scan_timestamp, total_vulnerabilities_found, scan_status 
+     FROM scan_metadata 
+     ORDER BY scan_timestamp DESC LIMIT 10;
+
+Example: "Which scans took longer than 5 minutes?"
+SQL: SELECT user_scan_name, scan_duration, total_vulnerabilities_found 
+     FROM scan_metadata 
+     WHERE scan_duration > 300 
+     ORDER BY scan_duration DESC;
+"""
+    
+    if any(word in question_lower for word in ['vulnerability', 'vulnerabilities', 'cve', 'critical', 'high']):
+        examples += """
+
+🚨 VULNERABILITY QUERY EXAMPLES:
+Example: "Show critical vulnerabilities by image"
+SQL: SELECT ap.IMAGE_TAG, COUNT(*) as critical_count, GROUP_CONCAT(DISTINCT ap.VULNERABILITY) as cves
+     FROM app_patrol ap 
+     WHERE ap.SEVERITY = 'CRITICAL' 
+     GROUP BY ap.IMAGE_TAG 
+     ORDER BY critical_count DESC;
+
+Example: "Compare vulnerability counts across scans"
+SQL: SELECT sm.user_scan_name, sm.critical_count, sm.high_count, sm.medium_count, sm.low_count
+     FROM scan_metadata sm 
+     ORDER BY sm.scan_timestamp DESC;
+"""
+    
+    if any(word in question_lower for word in ['performance', 'duration', 'packages', 'risk']):
+        examples += """
+
+⚡ PERFORMANCE QUERY EXAMPLES:
+Example: "Show scan performance metrics"
+SQL: SELECT user_scan_name, scan_duration, total_packages_scanned, 
+            (total_vulnerabilities_found * 1.0 / total_packages_scanned) as vuln_ratio,
+            risk_score
+     FROM scan_metadata 
+     WHERE total_packages_scanned > 0
+     ORDER BY risk_score DESC;
+"""
+    
+    return examples
+
+def get_enhanced_database_context():
+    """Generate comprehensive database context with schema details and data samples"""
+    
+    context = """
+
+📊 DATABASE SCHEMA CONTEXT:
+
+🏗️ TABLE: scan_metadata (Primary table for scan-level queries)
+├── scan_timestamp (TEXT, PRIMARY KEY) - "2024-01-15 14:30:22"
+├── user_scan_name (TEXT) - "Production EKS Cluster Scan" 
+├── image_count (INTEGER) - Number of container images scanned
+├── scan_duration (INTEGER) - Scan time in seconds
+├── total_packages_scanned (INTEGER) - Total packages analyzed
+├── total_vulnerabilities_found (INTEGER) - Total vulnerabilities discovered
+├── scan_status (TEXT) - SUCCESS/FAILED/PARTIAL
+├── scan_type (TEXT) - FULL/INCREMENTAL/RESCAN
+├── risk_score (REAL) - 0-100 security risk score
+├── critical_count, high_count, medium_count, low_count (INTEGER)
+├── exploitable_count (INTEGER) - Exploitable vulnerabilities
+├── scan_initiator (TEXT) - Who started the scan
+├── project_name (TEXT) - Associated project
+└── environment (TEXT) - PRODUCTION/STAGING/DEVELOPMENT
+
+🔍 TABLE: app_patrol (Individual vulnerability records)
+├── NAME (TEXT) - Package name (e.g., "nginx", "openssl")
+├── INSTALLED (TEXT) - Installed version
+├── FIXED_IN (TEXT) - Version that fixes the vulnerability
+├── TYPE (TEXT) - Package type
+├── VULNERABILITY (TEXT) - CVE identifier (e.g., "CVE-2024-1234")
+├── SEVERITY (TEXT) - CRITICAL/HIGH/MEDIUM/LOW
+├── IMAGE_TAG (TEXT) - Container image reference
+└── DATE_ADDED (TEXT) - When vulnerability was recorded
+
+🔗 JOINING STRATEGY:
+- Link tables using: substr(ap.DATE_ADDED, 1, 19) = substr(sm.scan_timestamp, 1, 19)
+- This connects vulnerability records to their scan metadata
+
+⚡ QUERY OPTIMIZATION RULES:
+1. For scan overview questions → Use scan_metadata only
+2. For vulnerability details → Use app_patrol only  
+3. For comprehensive analysis → JOIN both tables
+4. Always use LIMIT for large result sets
+5. Use GROUP BY for aggregations
+"""
+    return context
+
+def validate_query_intent(question: str) -> dict:
+    """Analyze question intent and suggest optimal query approach"""
+    question_lower = question.lower()
+    
+    intent = {
+        'primary_table': 'scan_metadata',
+        'needs_join': False,
+        'query_type': 'overview',
+        'suggested_columns': [],
+        'filters': []
+    }
+    
+    # Determine primary focus
+    if any(word in question_lower for word in ['package', 'cve-', 'vulnerability details', 'fixed in']):
+        intent['primary_table'] = 'app_patrol'
+        intent['suggested_columns'] = ['NAME', 'VULNERABILITY', 'SEVERITY', 'FIXED_IN']
+    
+    # Determine if join needed
+    if any(word in question_lower for word in ['scan', 'when', 'duration']) and \
+       any(word in question_lower for word in ['package', 'vulnerability', 'cve']):
+        intent['needs_join'] = True
+        intent['query_type'] = 'comprehensive'
+    
+    # Suggest filters
+    if 'critical' in question_lower:
+        intent['filters'].append("SEVERITY = 'CRITICAL'")
+    if 'production' in question_lower:
+        intent['filters'].append("environment = 'PRODUCTION'")
+    if 'recent' in question_lower:
+        intent['filters'].append("ORDER BY scan_timestamp DESC LIMIT 10")
+    
+    return intent
 
 def initialize_agent():
     """Initialize the ChatCVE AI agent"""
@@ -49,22 +182,24 @@ def initialize_agent():
         db = SQLDatabase.from_uri(f"sqlite:///{DATABASE_PATH}")
         toolkit = SQLDatabaseToolkit(db=db, llm=llm)
         
-        # Custom prompt to help AI understand the database structure
-        custom_prompt = """
-You are a ChatCVE security analyst AI assistant.
+        # Enhanced prompt with comprehensive database context
+        enhanced_prompt = f"""
+You are ChatCVE, a security analyst AI assistant specialized in vulnerability management and security analysis.
 
-⚠️ MANDATORY TABLE SELECTION:
-- Questions about SCAN NAMES, SCAN COUNTS, SCAN METADATA → ALWAYS use scan_metadata table
-- Questions about CVEs, PACKAGES, VULNERABILITIES → use app_patrol table
+{get_enhanced_database_context()}
 
-BEFORE querying, check if scan_metadata table exists by running: sql_db_schema scan_metadata
+QUERY STRATEGY:
+1. Analyze the question intent first
+2. Choose the appropriate table(s) based on the context above
+3. Explain your approach before writing SQL
+4. Provide actionable security insights in your response
 
-For scan questions, the scan_metadata table contains:
-- user_scan_name: Actual scan names like "PROJECT A - SCAN BUNDLE" 
-- scan_timestamp: When scans were performed
-- All scan statistics and metadata
-
-NEVER use app_patrol.NAME for scan names - it contains package names only!
+MANDATORY RULES:
+- Never use app_patrol.NAME for scan names (it's package names!)
+- Always use scan_metadata.user_scan_name for scan identification
+- Validate your SQL against the schema above
+- Include relevant security context in responses
+- Use the examples provided as guidance for similar queries
 """
 
         agent_executor = create_sql_agent(
@@ -72,7 +207,7 @@ NEVER use app_patrol.NAME for scan names - it contains package names only!
             toolkit=toolkit,
             verbose=True,
             agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-            prefix=custom_prompt
+            prefix=enhanced_prompt
         )
         
         print("ChatCVE AI agent initialized successfully")
@@ -119,25 +254,37 @@ def chat():
         if not agent_executor:
             return jsonify({'error': 'AI agent not available'}), 503
         
-        # Prepare the question with guardrails
-        guardrails = """
-        You are ChatCVE, a DevSecOps AI assistant specialized in vulnerability management and security analysis.
+        # Generate contextual examples based on the question
+        contextual_examples = get_contextual_examples(question)
+        query_intent = validate_query_intent(question)
         
-        Guidelines:
-        - Focus on security, vulnerability, and DevSecOps topics
-        - Provide accurate, actionable information
-        - When querying databases, explain your SQL queries
-        - Prioritize critical security issues
-        - Be concise but thorough
-        - If asked about non-security topics, politely redirect to security matters
+        # Enhanced guardrails with dynamic few-shot prompting
+        enhanced_guardrails = f"""
+You are ChatCVE, a DevSecOps AI assistant specialized in vulnerability management and security analysis.
+
+QUERY ANALYSIS:
+- Primary table focus: {query_intent['primary_table']}
+- Needs table join: {query_intent['needs_join']}
+- Query type: {query_intent['query_type']}
+
+{contextual_examples}
+
+CRITICAL DATABASE GUIDANCE:
+- scan_metadata table: Contains scan-level information (user_scan_name, scan_timestamp, totals, performance)
+- app_patrol table: Contains individual vulnerability records (NAME=package name, VULNERABILITY=CVE-ID, SEVERITY, IMAGE_TAG)
+
+Guidelines:
+- ALWAYS use scan_metadata for scan names, counts, and metadata queries
+- Use app_patrol for detailed vulnerability analysis and package information  
+- Join tables when you need both scan context AND vulnerability details
+- Explain your SQL approach before executing
+- Focus on actionable security insights
+- Be concise but thorough
+- If asked about non-security topics, politely redirect to security matters
+
+Question: """
         
-        Database Schema Context:
-        - app_patrol table: Contains SBOM and vulnerability data from container scans
-        - nvd_cves table: Contains CVE information from the National Vulnerability Database
-        
-        Question: """
-        
-        full_question = guardrails + question
+        full_question = enhanced_guardrails + question
         
         # Get response from agent
         response = agent_executor.run(full_question)
