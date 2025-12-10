@@ -37,6 +37,7 @@ eggs/
 .eggs/
 lib/
 lib64/
+!frontend-next/src/lib/
 parts/
 sdist/
 var/

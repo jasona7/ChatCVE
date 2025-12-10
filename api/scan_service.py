@@ -53,9 +53,72 @@ class RegistryBasedScanner:
     def __init__(self, db_path: str = "../app_patrol.db"):
         self.db_path = db_path
         self.active_scans = {}
-        
+
+        # Initialize database tables
+        self._init_database()
+
         # Check for required tools
         self._check_dependencies()
+
+    def _init_database(self):
+        """Create database tables if they don't exist"""
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+
+            # Create scan_metadata table
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS scan_metadata (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scan_timestamp TEXT,
+                    user_scan_name TEXT,
+                    image_count INTEGER,
+                    scan_duration REAL,
+                    total_packages_scanned INTEGER,
+                    total_vulnerabilities_found INTEGER,
+                    scan_status TEXT,
+                    scan_type TEXT,
+                    syft_version TEXT,
+                    grype_version TEXT,
+                    scan_engine TEXT,
+                    scan_source TEXT,
+                    risk_score REAL,
+                    critical_count INTEGER,
+                    high_count INTEGER,
+                    medium_count INTEGER,
+                    low_count INTEGER,
+                    exploitable_count INTEGER,
+                    scan_initiator TEXT,
+                    compliance_policy TEXT,
+                    scan_tags TEXT,
+                    project_name TEXT,
+                    environment TEXT
+                )
+            """)
+
+            # Create app_patrol table for vulnerability data
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS app_patrol (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    IMAGE_TAG TEXT,
+                    PACKAGE TEXT,
+                    VERSION TEXT,
+                    VULNERABILITY TEXT,
+                    SEVERITY TEXT,
+                    DESCRIPTION TEXT,
+                    NAME TEXT,
+                    INSTALLED TEXT,
+                    DATE_ADDED TEXT,
+                    FIXED_IN TEXT,
+                    SCAN_NAME TEXT
+                )
+            """)
+
+            conn.commit()
+            conn.close()
+            logger.info(f"Database initialized: {self.db_path}")
+        except Exception as e:
+            logger.error(f"Failed to initialize database: {e}")
     
     def _check_dependencies(self):
         """Check if Docker, Syft and Grype are installed and get versions"""
@@ -157,20 +220,27 @@ class RegistryBasedScanner:
     
     def _validate_image_reference(self, image_ref: str) -> bool:
         """Validate container image reference format"""
-        # Basic validation for registry/image:tag format
-        if not image_ref or '/' not in image_ref:
+        if not image_ref or not image_ref.strip():
             return False
-        
-        # Should have registry/image:tag format
-        parts = image_ref.split('/')
-        if len(parts) < 2:
+
+        image_ref = image_ref.strip()
+
+        # Skip comments and empty lines
+        if image_ref.startswith('#'):
             return False
-            
-        # Last part should have image:tag
-        image_tag = parts[-1]
-        if ':' not in image_tag:
+
+        # Valid formats:
+        # - image:tag (e.g., nginx:latest, alpine:3.19)
+        # - image (e.g., nginx - defaults to :latest)
+        # - registry/image:tag (e.g., docker.io/library/nginx:latest)
+        # - registry/namespace/image:tag
+
+        # Basic check: must have valid characters
+        import re
+        # Allow alphanumeric, dots, dashes, underscores, slashes, and colons
+        if not re.match(r'^[a-zA-Z0-9._\-/:]+$', image_ref):
             return False
-            
+
         return True
     
     async def _scan_single_image(self, scan_id: str, image_ref: str, temp_dir: str) -> Dict:
@@ -597,5 +667,6 @@ class RegistryBasedScanner:
         """List all active scan IDs"""
         return list(self.active_scans.keys())
 
-# Global scanner instance
-scanner = RegistryBasedScanner()
+# Global scanner instance - use DATABASE_PATH env var for Docker compatibility
+import os
+scanner = RegistryBasedScanner(db_path=os.getenv('DATABASE_PATH', '../app_patrol.db'))

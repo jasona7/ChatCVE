@@ -1,0 +1,47 @@
+services:
+  backend:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: chatcve-backend
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_PATH=/data/app_patrol.db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - NVD_API_KEY=${NVD_API_KEY:-}
+      - FLASK_ENV=${FLASK_ENV:-development}
+    volumes:
+      - chatcve-data:/data
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend-next
+      dockerfile: Dockerfile
+    container_name: chatcve-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - API_URL=http://backend:5000
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  chatcve-data:
+    driver: local

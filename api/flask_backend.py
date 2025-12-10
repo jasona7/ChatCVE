@@ -447,15 +447,14 @@ def get_scans():
         
         # First get comprehensive scan metadata
         cursor.execute("""
-            SELECT 
+            SELECT
                 scan_timestamp, user_scan_name, image_count,
                 scan_duration, total_packages_scanned, total_vulnerabilities_found,
                 scan_status, scan_type, syft_version, grype_version,
                 scan_engine, scan_source, risk_score, critical_count,
                 high_count, medium_count, low_count, exploitable_count,
-                scan_initiator, compliance_policy, scan_tags, project_name, environment,
-                created_at
-            FROM scan_metadata 
+                scan_initiator, compliance_policy, scan_tags, project_name, environment
+            FROM scan_metadata
             ORDER BY scan_timestamp DESC
         """)
         metadata_results = cursor.fetchall()
@@ -486,8 +485,7 @@ def get_scans():
                 'compliance_policy': row[19],
                 'scan_tags': json.loads(row[20]) if row[20] else [],
                 'project_name': row[21],
-                'environment': row[22],
-                'created_at': row[23]
+                'environment': row[22]
             }
         
         # Then get scan sessions 
@@ -563,8 +561,7 @@ def get_scans():
                 'compliance_policy': metadata.get('compliance_policy'),
                 'scan_tags': metadata.get('scan_tags', []),
                 'project_name': metadata.get('project_name'),
-                'environment': metadata.get('environment'),
-                'created_at': metadata.get('created_at')
+                'environment': metadata.get('environment')
             })
         
         return jsonify(scans)
@@ -901,19 +898,23 @@ def start_scan():
         if not targets:
             return jsonify({'error': 'No targets provided'}), 400
         
-        # Check if scan name already exists
+        # Check if scan name already exists (skip if table doesn't exist yet)
         try:
-            conn = sqlite3.connect('../app_patrol.db')
+            conn = sqlite3.connect(DATABASE_PATH)
             cursor = conn.cursor()
-            cursor.execute("SELECT COUNT(*) FROM scan_metadata WHERE user_scan_name = ?", (scan_name,))
-            count = cursor.fetchone()[0]
+            # Check if table exists first
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='scan_metadata'")
+            if cursor.fetchone():
+                cursor.execute("SELECT COUNT(*) FROM scan_metadata WHERE user_scan_name = ?", (scan_name,))
+                count = cursor.fetchone()[0]
+                if count > 0:
+                    conn.close()
+                    return jsonify({'error': f'Scan name "{scan_name}" already exists. Please choose a different name.'}), 400
             conn.close()
-            
-            if count > 0:
-                return jsonify({'error': f'Scan name "{scan_name}" already exists. Please choose a different name.'}), 400
         except Exception as e:
             print(f"Error checking scan name: {e}")
-            return jsonify({'error': 'Failed to validate scan name'}), 500
+            # Don't block scan if validation fails - table might not exist yet
+            pass
         
         # Generate unique scan ID
         scan_id = f"scan-{int(datetime.now().timestamp())}"

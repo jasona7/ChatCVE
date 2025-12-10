@@ -37,14 +37,32 @@ interface ScanDetail {
   id: string
   name: string // User-supplied scan name
   image: string
+  images?: string[]
   timestamp: string
   status: 'completed' | 'running' | 'failed'
   vulnerabilities: number
   packages: number
+  critical?: number
+  high?: number
+  medium?: number
+  low?: number
   scanType: 'file'
   source: string
   duration: string
   size: string
+  // Extended metadata from API
+  scan_duration?: number
+  total_packages_scanned?: number
+  total_vulnerabilities_found?: number
+  risk_score?: number
+  exploitable_count?: number
+  syft_version?: string
+  grype_version?: string
+  scan_engine?: string
+  scan_source?: string
+  scan_initiator?: string
+  project_name?: string
+  environment?: string
   details: {
     critical: number
     high: number
@@ -270,14 +288,19 @@ export function ScanManagement() {
   }
 
   // Combine active scans with historical scans
-    const activeScansArray = Array.from(activeScans.values()).map(activeScan => ({
+    const activeScansArray: ScanDetail[] = Array.from(activeScans.values()).map(activeScan => ({
       id: activeScan.id,
       name: activeScan.name,
       image: activeScan.targets[0] || 'Multiple targets',
+      images: activeScan.targets,
       timestamp: activeScan.startTime.toISOString(),
       status: activeScan.status as 'completed' | 'running' | 'failed',
       vulnerabilities: 0, // Will be updated when scan completes
       packages: 0,
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0,
       scanType: 'file' as const,
       source: activeScan.targets[0] || 'Multiple',
       duration: '0s',
@@ -540,7 +563,7 @@ export function ScanManagement() {
       
     } catch (error) {
       console.error('Error starting scan:', error)
-      alert(`Failed to start scan: ${error.message}`)
+      alert(`Failed to start scan: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
   
@@ -1163,9 +1186,9 @@ export function ScanManagement() {
 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-4 border-t border-border pt-6">
-              <Button 
-                onClick={startNewScan} 
-              disabled={!newScanConfig.name || !uploadedFile || nameValidationError || isCheckingName}
+              <Button
+                onClick={startNewScan}
+              disabled={!newScanConfig.name || !uploadedFile || !!nameValidationError || isCheckingName}
                 className="border-2"
                 size="lg"
               >
