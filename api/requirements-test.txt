@@ -1,0 +1,19 @@
+# ChatCVE Backend Test Dependencies
+# Install with: pip install -r requirements-test.txt
+
+# Testing Framework
+pytest==8.3.3
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+pytest-asyncio==0.23.0
+
+# HTTP Mocking
+responses==0.25.0
+
+# Time Mocking
+freezegun==1.2.2
+
+# Code Quality (optional but recommended)
+flake8==7.0.0
+black==24.3.0
+isort==5.13.0

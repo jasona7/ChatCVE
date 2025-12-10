@@ -235,10 +235,29 @@ class RegistryBasedScanner:
         # - registry/image:tag (e.g., docker.io/library/nginx:latest)
         # - registry/namespace/image:tag
 
+        # SECURITY: Reject path traversal attempts
+        if '..' in image_ref:
+            return False
+
+        # SECURITY: Reject absolute paths and file:// URIs
+        if image_ref.startswith('/') or image_ref.startswith('file:'):
+            return False
+
+        # SECURITY: Reject URL-encoded path traversal
+        if '%2f' in image_ref.lower() or '%252f' in image_ref.lower():
+            return False
+
         # Basic check: must have valid characters
-        import re
-        # Allow alphanumeric, dots, dashes, underscores, slashes, and colons
-        if not re.match(r'^[a-zA-Z0-9._\-/:]+$', image_ref):
+        # Allow alphanumeric, dots, dashes, underscores, slashes, colons, and @ (for digests)
+        if not re.match(r'^[a-zA-Z0-9._\-/:@]+$', image_ref):
+            return False
+
+        # SECURITY: Reject tag-only references (must have image name before colon)
+        if image_ref.startswith(':'):
+            return False
+
+        # SECURITY: Reject empty tags and double colons
+        if '::' in image_ref or image_ref.endswith(':'):
             return False
 
         return True
