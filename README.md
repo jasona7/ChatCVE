@@ -89,6 +89,7 @@ Before running ChatCVE, ensure you have the following installed on your system:
 
 ### 🐳 **Docker Requirements**
 - **Docker Engine** (required for container image scanning)
+- **Docker Compose** (for containerized deployment)
 - **Docker daemon** must be running
 - **User permissions** to run Docker commands
 
@@ -117,6 +118,32 @@ sudo usermod -aG docker $USER
 - **NVD API Key** - For increased rate limits (5 → 50 requests/30s)
 
 ## ⚡ Quick Start
+
+### 🐳 **Option A: Docker Deployment (Recommended)**
+
+The fastest way to get ChatCVE running:
+
+```bash
+# Clone the repository
+git clone https://github.com/jasona7/ChatCVE.git
+cd ChatCVE
+
+# Set your OpenAI API key
+export OPENAI_API_KEY="your_openai_api_key_here"
+
+# Start with Docker Compose
+docker-compose up --build
+```
+
+That's it! Access ChatCVE at http://localhost:3000
+
+> **Note**: Docker deployment automatically installs Syft, Grype, and all dependencies. Requires Docker and Docker Compose.
+
+---
+
+### 🔧 **Option B: Manual Installation**
+
+For development or customization:
 
 ### 1️⃣ **Clone the Repository**
 ```bash
@@ -390,16 +417,19 @@ public.ecr.aws/docker/library/alpine:3.19
 ChatCVE/
 ├── api/                          # Flask backend
 │   ├── flask_backend.py         # Main API server
-│   └── scan_service.py          # Scanning logic
+│   ├── scan_service.py          # Scanning logic
+│   ├── Dockerfile               # Backend container image
+│   └── requirements.txt         # Python dependencies
 ├── frontend-next/               # Next.js frontend
 │   ├── src/
 │   │   ├── app/                # App router pages
 │   │   ├── components/         # React components
 │   │   └── lib/                # Utilities and API client
+│   └── Dockerfile               # Frontend container image
+├── docker-compose.yml           # Container orchestration
 ├── install-scan-tools.sh       # Dependency installer
 ├── start-chatcve.sh           # Startup script
-├── check-prerequisites.sh     # Dependency checker
-└── requirements.txt           # Python dependencies
+└── check-prerequisites.sh     # Dependency checker
 ```
 
 ### Running in Development Mode
