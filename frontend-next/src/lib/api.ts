@@ -49,14 +49,37 @@ export interface VulnerabilityDetail {
   version: string
 }
 
+function getAuthHeaders(): HeadersInit {
+  if (typeof window === 'undefined') return { 'Content-Type': 'application/json' };
+
+  const token = localStorage.getItem('chatcve_token');
+  if (token) {
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    };
+  }
+  return { 'Content-Type': 'application/json' };
+}
+
 async function fetchAPI<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${endpoint}`, {
     headers: {
-      'Content-Type': 'application/json',
+      ...getAuthHeaders(),
       ...options?.headers,
     },
     ...options,
   })
+
+  // Handle 401 - redirect to login
+  if (response.status === 401) {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('chatcve_token');
+      localStorage.removeItem('chatcve_user');
+      window.location.href = '/login';
+    }
+    throw new Error('Authentication required');
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }))

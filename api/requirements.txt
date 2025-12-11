@@ -5,3 +5,4 @@ langchain==0.1.0
 langchain-openai==0.0.2
 langchain-community==0.0.10
 gunicorn==21.2.0
+PyJWT==2.8.0

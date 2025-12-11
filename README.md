@@ -1,6 +1,6 @@
 # ChatCVE - AI-Powered DevSecOps Vulnerability Management
 
-![ChatCVE Dashboard](https://img.shields.io/badge/Status-Active-green) ![Python](https://img.shields.io/badge/Python-3.10+-blue) ![Next.js](https://img.shields.io/badge/Next.js-14-black) ![License](https://img.shields.io/badge/License-MIT-yellow)
+![ChatCVE Dashboard](https://img.shields.io/badge/Status-Active-green) ![Python](https://img.shields.io/badge/Python-3.10+-blue) ![Next.js](https://img.shields.io/badge/Next.js-14-black) ![License](https://img.shields.io/badge/License-MIT-yellow) ![Tests](https://img.shields.io/badge/Tests-pytest%20%7C%20Vitest-brightgreen) ![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-blue)
 
 ChatCVE is a open 'Work in Progress' AI-powered DevSecOps platform that helps security teams triage, analyze, and manage vulnerabilities across their infrastructure. Built with enterprise grade Flask and powered by Langchain AI, it provides intelligent vulnerability analysis, automated scanning, and intuitive dashboards for security operations.
 
@@ -51,6 +51,40 @@ ChatCVE is a open 'Work in Progress' AI-powered DevSecOps platform that helps se
 - **⚡ Performance Analytics** - Scan duration tracking, package analysis metrics, and efficiency monitoring
 - **🔧 Technical Provenance** - Tool versioning, scan engine tracking, and reproducibility metadata
 - **📈 Risk Assessment** - Advanced risk scoring algorithms with contextual security insights
+- **🔐 User Authentication** - JWT-based auth with role-based access control (admin, user, guest)
+
+## 🔐 Authentication
+
+ChatCVE includes built-in user authentication with role-based access control.
+
+### First-Time Setup
+On first launch, you'll be prompted to create an admin account:
+1. Navigate to the application (http://localhost:3000)
+2. You'll be redirected to `/setup`
+3. Create your admin username and password (min 8 characters)
+4. You'll be automatically logged in
+
+### User Roles
+
+| Role | Permissions |
+|------|-------------|
+| **Admin** | Full access: manage users, delete scans, all settings |
+| **User** | Start scans, view scans, use AI chat, view CVEs |
+| **Guest** | Read-only: view stats, CVEs (no scans, no chat) |
+
+### Managing Users (Admin Only)
+Admins can create and manage users through the Settings page:
+- Only admins can create new user accounts (no self-registration)
+- Assign roles: admin, user, or guest
+- Delete users (cannot delete yourself)
+
+### Security Configuration
+For production deployments, set a secure JWT secret:
+```bash
+# In your .env file or environment
+JWT_SECRET_KEY=your-secure-random-string-here
+JWT_EXPIRATION_HOURS=24  # Token expiration (default: 24 hours)
+```
 
 ## 🧠 **AI Chat Experience Improvements** *(Latest Release)*
 
@@ -419,13 +453,25 @@ ChatCVE/
 │   ├── flask_backend.py         # Main API server
 │   ├── scan_service.py          # Scanning logic
 │   ├── Dockerfile               # Backend container image
-│   └── requirements.txt         # Python dependencies
+│   ├── requirements.txt         # Python dependencies
+│   ├── requirements-test.txt    # Test dependencies
+│   └── tests/                   # Backend tests
+│       ├── unit/               # Unit tests
+│       ├── integration/        # Integration tests
+│       └── conftest.py         # pytest fixtures
 ├── frontend-next/               # Next.js frontend
 │   ├── src/
 │   │   ├── app/                # App router pages
 │   │   ├── components/         # React components
-│   │   └── lib/                # Utilities and API client
-│   └── Dockerfile               # Frontend container image
+│   │   ├── lib/                # Utilities and API client
+│   │   ├── __tests__/          # Frontend tests
+│   │   └── __mocks__/          # MSW handlers
+│   ├── Dockerfile               # Frontend container image
+│   ├── vitest.config.ts        # Test configuration
+│   └── e2e/                    # E2E tests (Playwright)
+├── .github/workflows/           # CI/CD pipelines
+│   ├── test.yml                # Test workflow
+│   └── codeql.yml              # Security scanning
 ├── docker-compose.yml           # Container orchestration
 ├── install-scan-tools.sh       # Dependency installer
 ├── start-chatcve.sh           # Startup script
@@ -452,6 +498,95 @@ npm run dev
 2. **Frontend**: Create components in `src/components/`
 3. **Database**: Extend SQLite schema as needed
 4. **Scanning**: Modify `scan_service.py` for new scan types
+
+## 🧪 Testing
+
+ChatCVE includes a comprehensive testing suite to ensure reliability and security.
+
+### Running Tests
+
+#### Backend Tests (Python/pytest)
+```bash
+cd api
+pip install -r requirements-test.txt
+pytest tests/unit -v                    # Unit tests
+pytest tests/integration -v             # Integration tests
+pytest tests/ -v --cov=. --cov-report=html  # With coverage
+```
+
+#### Frontend Tests (Vitest/React Testing Library)
+```bash
+cd frontend-next
+npm install
+npm run test                            # Interactive mode
+npm run test:ci                         # CI mode with coverage
+npm run test:ui                         # Visual UI mode
+```
+
+#### E2E Tests (Playwright)
+```bash
+cd frontend-next
+npx playwright install
+npm run test:e2e                        # Run E2E tests
+npm run test:e2e:ui                     # Visual E2E mode
+```
+
+### Test Coverage Targets
+| Category | Target |
+|----------|--------|
+| Backend Unit Tests | 80% |
+| Backend Integration | 70% |
+| Frontend Components | 70% |
+| Frontend API Client | 85% |
+
+## 🔄 CI/CD Pipeline
+
+ChatCVE implements **shift-left security** with automated testing on every push and pull request.
+
+### Pipeline Flow
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    On Push/PR to master                         │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │
+│  │   Backend    │  │   Frontend   │  │   Security   │          │
+│  │    Tests     │  │    Tests     │  │    Scan      │          │
+│  │  (parallel)  │  │  (parallel)  │  │  (parallel)  │          │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘          │
+│         │                 │                 │                   │
+│         ▼                 ▼                 ▼                   │
+│  • pytest unit      • vitest run      • Trivy scan             │
+│  • pytest integ     • type-check      • CodeQL                 │
+│  • coverage 80%+    • lint check      • Dependency audit       │
+│         └────────┬────────┴────────┬────────┘                   │
+│                  ▼                 ▼                            │
+│           ┌─────────────────────────────┐                       │
+│           │  All Pass? → E2E Tests      │                       │
+│           │  (Playwright)               │                       │
+│           └─────────────────────────────┘                       │
+│                         │                                       │
+│                         ▼                                       │
+│           ┌─────────────────────────────┐                       │
+│           │  Coverage Report → Codecov  │                       │
+│           │  Security Report → SARIF    │                       │
+│           └─────────────────────────────┘                       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Shift-Left Security Benefits
+| Stage | What Happens | DevSecOps Value |
+|-------|--------------|-----------------|
+| Pre-merge | Tests run on PR | Catch bugs before they hit main |
+| Security scan | Trivy + CodeQL | Find vulnerabilities in dependencies & code |
+| Coverage gates | Fail if < 80% | Enforce quality standards |
+| SARIF upload | GitHub Security tab | Centralized vulnerability tracking |
+
+### CI/CD Features
+- **Automated Testing**: Backend (pytest) and frontend (Vitest) tests run in parallel
+- **Security Scanning**: Trivy filesystem scan and Python dependency audit
+- **Docker Build Verification**: Ensures containers build successfully
+- **Coverage Reporting**: Automatic upload to Codecov
+- **E2E Testing**: Playwright tests on pull requests
 
 ## 🔍 API Documentation
 

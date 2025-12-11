@@ -8,9 +8,12 @@ import os
 import json
 import sqlite3
 import asyncio
-from datetime import datetime
-from flask import Flask, request, jsonify
+from datetime import datetime, timedelta
+from functools import wraps
+from flask import Flask, request, jsonify, g
 from flask_cors import CORS
+from werkzeug.security import generate_password_hash, check_password_hash
+import jwt
 from scan_service import scanner
 from langchain_openai import ChatOpenAI
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
@@ -24,6 +27,8 @@ CORS(app)
 # Configuration
 DATABASE_PATH = os.getenv('DATABASE_PATH', '../app_patrol.db')
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'chatcve-secret-key-change-in-production')
+JWT_EXPIRATION_HOURS = int(os.getenv('JWT_EXPIRATION_HOURS', 24))
 
 # Initialize ChatCVE components
 llm = None
@@ -227,6 +232,333 @@ def get_db_connection():
         print(f"Database connection failed: {e}")
         return None
 
+# =============================================================================
+# Authentication System
+# =============================================================================
+
+def init_users_table():
+    """Initialize the users table if it doesn't exist"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                role TEXT DEFAULT 'user',
+                created_at TEXT,
+                last_login TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+        print("Users table initialized")
+    except Exception as e:
+        print(f"Failed to initialize users table: {e}")
+
+def get_user_by_username(username):
+    """Get user by username"""
+    conn = get_db_connection()
+    if not conn:
+        return None
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE username = ?", (username,))
+    user = cursor.fetchone()
+    conn.close()
+    return dict(user) if user else None
+
+def get_user_by_id(user_id):
+    """Get user by ID"""
+    conn = get_db_connection()
+    if not conn:
+        return None
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+    conn.close()
+    return dict(user) if user else None
+
+def create_user(username, password, role='user'):
+    """Create a new user"""
+    conn = get_db_connection()
+    if not conn:
+        return None
+    try:
+        cursor = conn.cursor()
+        password_hash = generate_password_hash(password)
+        cursor.execute("""
+            INSERT INTO users (username, password_hash, role, created_at)
+            VALUES (?, ?, ?, ?)
+        """, (username, password_hash, role, datetime.now().isoformat()))
+        conn.commit()
+        user_id = cursor.lastrowid
+        conn.close()
+        return user_id
+    except sqlite3.IntegrityError:
+        conn.close()
+        return None  # Username already exists
+    except Exception as e:
+        print(f"Error creating user: {e}")
+        conn.close()
+        return None
+
+def admin_exists():
+    """Check if any admin user exists"""
+    conn = get_db_connection()
+    if not conn:
+        return False
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users WHERE role = 'admin'")
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count > 0
+
+def generate_token(user_id, username, role):
+    """Generate JWT token"""
+    payload = {
+        'user_id': user_id,
+        'username': username,
+        'role': role,
+        'exp': datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS),
+        'iat': datetime.utcnow()
+    }
+    return jwt.encode(payload, JWT_SECRET_KEY, algorithm='HS256')
+
+def verify_token(token):
+    """Verify JWT token and return payload"""
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
+        return payload
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+def require_auth(roles=None):
+    """Decorator to require authentication and optionally specific roles"""
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            auth_header = request.headers.get('Authorization')
+            if not auth_header or not auth_header.startswith('Bearer '):
+                return jsonify({'error': 'Authentication required'}), 401
+
+            token = auth_header.split(' ')[1]
+            payload = verify_token(token)
+
+            if not payload:
+                return jsonify({'error': 'Invalid or expired token'}), 401
+
+            # Check role if specified
+            if roles and payload.get('role') not in roles:
+                return jsonify({'error': 'Insufficient permissions'}), 403
+
+            # Set current user in request context
+            g.current_user = payload
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+# =============================================================================
+# Auth Endpoints
+# =============================================================================
+
+@app.route('/api/auth/check-setup', methods=['GET'])
+def check_setup():
+    """Check if initial setup is complete (admin exists)"""
+    try:
+        # First ensure users table exists
+        init_users_table()
+        return jsonify({'setupComplete': admin_exists()})
+    except Exception as e:
+        print(f"Error checking setup: {e}")
+        return jsonify({'setupComplete': False})
+
+@app.route('/api/auth/setup', methods=['POST'])
+def setup_admin():
+    """Create the first admin user (only works if no admin exists)"""
+    try:
+        init_users_table()
+
+        if admin_exists():
+            return jsonify({'error': 'Setup already complete'}), 400
+
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+
+        if not username or not password:
+            return jsonify({'error': 'Username and password required'}), 400
+
+        if len(username) < 3:
+            return jsonify({'error': 'Username must be at least 3 characters'}), 400
+
+        if len(password) < 8:
+            return jsonify({'error': 'Password must be at least 8 characters'}), 400
+
+        user_id = create_user(username, password, role='admin')
+        if not user_id:
+            return jsonify({'error': 'Failed to create admin user'}), 500
+
+        # Generate token for immediate login
+        token = generate_token(user_id, username, 'admin')
+
+        return jsonify({
+            'message': 'Admin user created successfully',
+            'token': token,
+            'user': {
+                'id': user_id,
+                'username': username,
+                'role': 'admin'
+            }
+        })
+
+    except Exception as e:
+        print(f"Error in setup: {e}")
+        return jsonify({'error': 'Setup failed'}), 500
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Authenticate user and return JWT token"""
+    try:
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+
+        if not username or not password:
+            return jsonify({'error': 'Username and password required'}), 400
+
+        user = get_user_by_username(username)
+        if not user or not check_password_hash(user['password_hash'], password):
+            return jsonify({'error': 'Invalid credentials'}), 401
+
+        # Update last login
+        conn = get_db_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET last_login = ? WHERE id = ?",
+                         (datetime.now().isoformat(), user['id']))
+            conn.commit()
+            conn.close()
+
+        token = generate_token(user['id'], user['username'], user['role'])
+
+        return jsonify({
+            'token': token,
+            'user': {
+                'id': user['id'],
+                'username': user['username'],
+                'role': user['role']
+            }
+        })
+
+    except Exception as e:
+        print(f"Error in login: {e}")
+        return jsonify({'error': 'Login failed'}), 500
+
+@app.route('/api/auth/me', methods=['GET'])
+@require_auth()
+def get_current_user():
+    """Get current authenticated user info"""
+    user = get_user_by_id(g.current_user['user_id'])
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    return jsonify({
+        'id': user['id'],
+        'username': user['username'],
+        'role': user['role'],
+        'created_at': user['created_at'],
+        'last_login': user['last_login']
+    })
+
+@app.route('/api/auth/users', methods=['GET'])
+@require_auth(roles=['admin'])
+def list_users():
+    """List all users (admin only)"""
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({'error': 'Database connection failed'}), 500
+
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, role, created_at, last_login FROM users ORDER BY created_at DESC")
+    users = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    return jsonify(users)
+
+@app.route('/api/auth/users', methods=['POST'])
+@require_auth(roles=['admin'])
+def create_new_user():
+    """Create a new user (admin only)"""
+    try:
+        data = request.get_json()
+        username = data.get('username', '').strip()
+        password = data.get('password', '')
+        role = data.get('role', 'user')
+
+        if not username or not password:
+            return jsonify({'error': 'Username and password required'}), 400
+
+        if len(username) < 3:
+            return jsonify({'error': 'Username must be at least 3 characters'}), 400
+
+        if len(password) < 8:
+            return jsonify({'error': 'Password must be at least 8 characters'}), 400
+
+        if role not in ['admin', 'user', 'guest']:
+            return jsonify({'error': 'Invalid role'}), 400
+
+        user_id = create_user(username, password, role)
+        if not user_id:
+            return jsonify({'error': 'Username already exists'}), 400
+
+        return jsonify({
+            'message': 'User created successfully',
+            'user': {
+                'id': user_id,
+                'username': username,
+                'role': role
+            }
+        }), 201
+
+    except Exception as e:
+        print(f"Error creating user: {e}")
+        return jsonify({'error': 'Failed to create user'}), 500
+
+@app.route('/api/auth/users/<int:user_id>', methods=['DELETE'])
+@require_auth(roles=['admin'])
+def delete_user(user_id):
+    """Delete a user (admin only)"""
+    try:
+        # Prevent deleting yourself
+        if g.current_user['user_id'] == user_id:
+            return jsonify({'error': 'Cannot delete your own account'}), 400
+
+        user = get_user_by_id(user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'message': 'User deleted successfully'})
+
+    except Exception as e:
+        print(f"Error deleting user: {e}")
+        return jsonify({'error': 'Failed to delete user'}), 500
+
+# =============================================================================
+# Public Endpoints
+# =============================================================================
+
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
@@ -242,6 +574,7 @@ def get_chat_history():
     return jsonify(chat_history)
 
 @app.route('/api/chat', methods=['POST'])
+@require_auth(roles=['admin', 'user'])
 def chat():
     """Handle chat messages"""
     try:
@@ -571,8 +904,9 @@ def get_scans():
         return jsonify({'error': 'Failed to retrieve scans'}), 500
 
 @app.route('/api/scans/<scan_id>', methods=['DELETE'])
+@require_auth(roles=['admin'])
 def delete_scan(scan_id):
-    """Delete a scan and all its associated data"""
+    """Delete a scan and all its associated data (admin only)"""
     try:
         conn = get_db_connection()
         if not conn:
@@ -880,6 +1214,7 @@ def search_cves():
 
 # Real Scanning Endpoints
 @app.route('/api/scans/start', methods=['POST'])
+@require_auth(roles=['admin', 'user'])
 def start_scan():
     """Start a real vulnerability scan"""
     try:
