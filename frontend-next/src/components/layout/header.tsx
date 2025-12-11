@@ -117,11 +117,11 @@ export function Header({ onRefresh }: HeaderProps) {
                   <button
                     onClick={() => {
                       setIsUserMenuOpen(false)
-                      router.push('/settings')
+                      router.push('/settings/users')
                     }}
                     className="w-full flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
                   >
-                    <Settings className="h-4 w-4" />
+                    <User className="h-4 w-4" />
                     User Management
                   </button>
                 )}
