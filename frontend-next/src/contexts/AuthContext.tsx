@@ -6,6 +6,7 @@ interface User {
   id: number;
   username: string;
   role: 'admin' | 'user' | 'guest';
+  is_owner?: boolean;
 }
 
 interface AuthContextType {

@@ -247,6 +247,7 @@ def init_users_table():
                 username TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 role TEXT DEFAULT 'user',
+                is_owner INTEGER DEFAULT 0,
                 created_at TEXT,
                 last_login TEXT
             )
@@ -279,7 +280,7 @@ def get_user_by_id(user_id):
     conn.close()
     return dict(user) if user else None
 
-def create_user(username, password, role='user'):
+def create_user(username, password, role='user', is_owner=False):
     """Create a new user"""
     conn = get_db_connection()
     if not conn:
@@ -288,9 +289,9 @@ def create_user(username, password, role='user'):
         cursor = conn.cursor()
         password_hash = generate_password_hash(password)
         cursor.execute("""
-            INSERT INTO users (username, password_hash, role, created_at)
-            VALUES (?, ?, ?, ?)
-        """, (username, password_hash, role, datetime.now().isoformat()))
+            INSERT INTO users (username, password_hash, role, is_owner, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, (username, password_hash, role, 1 if is_owner else 0, datetime.now().isoformat()))
         conn.commit()
         user_id = cursor.lastrowid
         conn.close()
@@ -397,7 +398,8 @@ def setup_admin():
         if len(password) < 8:
             return jsonify({'error': 'Password must be at least 8 characters'}), 400
 
-        user_id = create_user(username, password, role='admin')
+        # First admin is marked as owner (protected from deletion)
+        user_id = create_user(username, password, role='admin', is_owner=True)
         if not user_id:
             return jsonify({'error': 'Failed to create admin user'}), 500
 
@@ -410,7 +412,8 @@ def setup_admin():
             'user': {
                 'id': user_id,
                 'username': username,
-                'role': 'admin'
+                'role': 'admin',
+                'is_owner': True
             }
         })
 
@@ -449,7 +452,8 @@ def login():
             'user': {
                 'id': user['id'],
                 'username': user['username'],
-                'role': user['role']
+                'role': user['role'],
+                'is_owner': bool(user.get('is_owner', 0))
             }
         })
 
@@ -469,6 +473,7 @@ def get_current_user():
         'id': user['id'],
         'username': user['username'],
         'role': user['role'],
+        'is_owner': bool(user.get('is_owner', 0)),
         'created_at': user['created_at'],
         'last_login': user['last_login']
     })
@@ -482,11 +487,18 @@ def list_users():
         return jsonify({'error': 'Database connection failed'}), 500
 
     cursor = conn.cursor()
-    cursor.execute("SELECT id, username, role, created_at, last_login FROM users ORDER BY created_at DESC")
-    users = [dict(row) for row in cursor.fetchall()]
+    cursor.execute("SELECT id, username, role, is_owner, created_at, last_login FROM users ORDER BY created_at DESC")
+    users = cursor.fetchall()
     conn.close()
 
-    return jsonify(users)
+    # Convert is_owner to boolean
+    result = []
+    for user in users:
+        user_dict = dict(user)
+        user_dict['is_owner'] = bool(user_dict.get('is_owner', 0))
+        result.append(user_dict)
+
+    return jsonify(result)
 
 @app.route('/api/auth/users', methods=['POST'])
 @require_auth(roles=['admin'])
@@ -539,6 +551,10 @@ def delete_user(user_id):
         user = get_user_by_id(user_id)
         if not user:
             return jsonify({'error': 'User not found'}), 404
+
+        # Protect the owner account from deletion
+        if user.get('is_owner'):
+            return jsonify({'error': 'Cannot delete the owner account'}), 403
 
         conn = get_db_connection()
         if not conn:
