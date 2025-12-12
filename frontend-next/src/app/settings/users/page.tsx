@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { useAuth } from '@/contexts/AuthContext'
-import { Shield, Plus, Trash2, User, Crown } from 'lucide-react'
+import { Shield, Plus, Trash2, User, Crown, Key, X } from 'lucide-react'
+import { api } from '@/lib/api'
 
 interface UserData {
   id: number
@@ -29,6 +30,13 @@ export default function UserManagementPage() {
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'user' })
   const [createError, setCreateError] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+
+  // Password reset modal state
+  const [resetModalUser, setResetModalUser] = useState<UserData | null>(null)
+  const [resetPassword, setResetPassword] = useState('')
+  const [resetError, setResetError] = useState<string | null>(null)
+  const [resetSuccess, setResetSuccess] = useState<string | null>(null)
+  const [isResetting, setIsResetting] = useState(false)
 
   const fetchUsers = async () => {
     try {
@@ -106,6 +114,44 @@ export default function UserManagementPage() {
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : 'Failed to delete user')
     }
+  }
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!resetModalUser) return
+
+    setResetError(null)
+    setResetSuccess(null)
+    setIsResetting(true)
+
+    try {
+      const result = await api.adminResetPassword(resetModalUser.id, resetPassword)
+      setResetSuccess(result.message)
+      setResetPassword('')
+      // Close modal after short delay to show success message
+      setTimeout(() => {
+        setResetModalUser(null)
+        setResetSuccess(null)
+      }, 1500)
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : 'Failed to reset password')
+    } finally {
+      setIsResetting(false)
+    }
+  }
+
+  const openResetModal = (user: UserData) => {
+    setResetModalUser(user)
+    setResetPassword('')
+    setResetError(null)
+    setResetSuccess(null)
+  }
+
+  const closeResetModal = () => {
+    setResetModalUser(null)
+    setResetPassword('')
+    setResetError(null)
+    setResetSuccess(null)
   }
 
   const formatDate = (dateString: string | null) => {
@@ -293,15 +339,24 @@ export default function UserManagementPage() {
                       {formatDate(user.last_login)}
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {!user.is_owner && (
+                      <div className="flex items-center justify-end gap-1">
                         <button
-                          onClick={() => handleDeleteUser(user.id, user.username)}
-                          className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
-                          title="Delete user"
+                          onClick={() => openResetModal(user)}
+                          className="p-2 text-blue-400 hover:bg-blue-500/10 rounded-lg transition-colors"
+                          title="Reset password"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Key className="h-4 w-4" />
                         </button>
-                      )}
+                        {!user.is_owner && (
+                          <button
+                            onClick={() => handleDeleteUser(user.id, user.username)}
+                            className="p-2 text-red-400 hover:bg-red-500/10 rounded-lg transition-colors"
+                            title="Delete user"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -337,6 +392,75 @@ export default function UserManagementPage() {
             </div>
           </div>
         </div>
+
+        {/* Password Reset Modal */}
+        {resetModalUser && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Reset Password</h2>
+                <button
+                  onClick={closeResetModal}
+                  className="p-1 text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <p className="text-muted-foreground mb-4">
+                Set a new password for <span className="text-foreground font-medium">{resetModalUser.username}</span>
+              </p>
+
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-muted-foreground mb-1">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    value={resetPassword}
+                    onChange={(e) => setResetPassword(e.target.value)}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="Enter new password"
+                    minLength={8}
+                    required
+                    autoFocus
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">Minimum 8 characters</p>
+                </div>
+
+                {resetError && (
+                  <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 text-red-400 text-sm">
+                    {resetError}
+                  </div>
+                )}
+
+                {resetSuccess && (
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-3 text-green-400 text-sm">
+                    {resetSuccess}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    type="submit"
+                    disabled={isResetting || resetPassword.length < 8}
+                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-600/50 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+                  >
+                    {isResetting ? 'Resetting...' : 'Reset Password'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeResetModal}
+                    className="px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </MainLayout>
   )

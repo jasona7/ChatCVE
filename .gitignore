@@ -1,5 +1,8 @@
 # ChatCVE Gitignore
 
+# Claude Code artifacts
+.claude/
+
 # Environment and Configuration
 .env*
 *.env
@@ -17,6 +20,7 @@ cosign.pub
 security-advisory-access.*.private-key.pem
 
 # Database Files (keep structure, ignore data)
+*.db
 app_patrol.db
 app_patrol.db-journal
 *.sqlite

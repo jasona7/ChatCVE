@@ -7,6 +7,8 @@ interface User {
   username: string;
   role: 'admin' | 'user' | 'guest';
   is_owner?: boolean;
+  created_at?: string;
+  last_login?: string | null;
 }
 
 interface AuthContextType {

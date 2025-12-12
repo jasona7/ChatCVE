@@ -571,6 +571,84 @@ def delete_user(user_id):
         print(f"Error deleting user: {e}")
         return jsonify({'error': 'Failed to delete user'}), 500
 
+@app.route('/api/auth/users/<int:user_id>/password', methods=['PUT'])
+@require_auth(roles=['admin'])
+def admin_reset_password(user_id):
+    """Reset a user's password (admin only)"""
+    try:
+        # Prevent admin from using this endpoint for their own password
+        if g.current_user['user_id'] == user_id:
+            return jsonify({'error': 'Use the change password endpoint for your own password'}), 400
+
+        user = get_user_by_id(user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        data = request.get_json()
+        new_password = data.get('new_password', '')
+
+        if len(new_password) < 8:
+            return jsonify({'error': 'Password must be at least 8 characters'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+        password_hash = generate_password_hash(new_password)
+        cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                      (password_hash, user_id))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'message': f'Password reset successfully for user {user["username"]}'})
+
+    except Exception as e:
+        print(f"Error resetting password: {e}")
+        return jsonify({'error': 'Failed to reset password'}), 500
+
+@app.route('/api/auth/me/password', methods=['PUT'])
+@require_auth()
+def change_own_password():
+    """Change current user's password (requires current password)"""
+    try:
+        user = get_user_by_id(g.current_user['user_id'])
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        data = request.get_json()
+        current_password = data.get('current_password', '')
+        new_password = data.get('new_password', '')
+
+        # Verify current password
+        if not check_password_hash(user['password_hash'], current_password):
+            return jsonify({'error': 'Current password is incorrect'}), 401
+
+        # Validate new password
+        if len(new_password) < 8:
+            return jsonify({'error': 'New password must be at least 8 characters'}), 400
+
+        # Prevent using same password
+        if current_password == new_password:
+            return jsonify({'error': 'New password must be different from current password'}), 400
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+        password_hash = generate_password_hash(new_password)
+        cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                      (password_hash, g.current_user['user_id']))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'message': 'Password changed successfully'})
+
+    except Exception as e:
+        print(f"Error changing password: {e}")
+        return jsonify({'error': 'Failed to change password'}), 500
+
 # =============================================================================
 # Public Endpoints
 # =============================================================================
@@ -783,6 +861,93 @@ def get_recent_activity():
     except Exception as e:
         print(f"Error getting recent activity: {e}")
         return jsonify([]), 500
+
+@app.route('/api/database/query', methods=['POST'])
+@require_auth(roles=['admin'])
+def execute_database_query():
+    """Execute a read-only SQL query against the database (admin only)"""
+    try:
+        data = request.get_json()
+        query = data.get('query', '').strip()
+
+        if not query:
+            return jsonify({'error': 'Query is required'}), 400
+
+        # Security: Only allow SELECT queries
+        query_upper = query.upper().strip()
+        if not query_upper.startswith('SELECT'):
+            return jsonify({'error': 'Only SELECT queries are allowed'}), 403
+
+        # Security: Block dangerous keywords
+        dangerous_keywords = ['DROP', 'DELETE', 'UPDATE', 'INSERT', 'ALTER', 'CREATE', 'TRUNCATE', 'EXEC', 'EXECUTE', '--', ';--']
+        for keyword in dangerous_keywords:
+            if keyword in query_upper:
+                return jsonify({'error': f'Query contains forbidden keyword: {keyword}'}), 403
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+        cursor.execute(query)
+
+        # Get column names
+        columns = [description[0] for description in cursor.description] if cursor.description else []
+
+        # Fetch results
+        rows = cursor.fetchall()
+        conn.close()
+
+        # Convert to list of dicts
+        results = []
+        for row in rows:
+            results.append(dict(zip(columns, row)))
+
+        return jsonify({
+            'columns': columns,
+            'rows': results,
+            'count': len(results)
+        })
+
+    except Exception as e:
+        print(f"Error executing query: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/database/stats', methods=['GET'])
+@require_auth(roles=['admin'])
+def get_database_stats():
+    """Get database statistics (admin only)"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+
+        # Get table count
+        cursor.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'")
+        table_count = cursor.fetchone()[0]
+
+        # Get total records in app_patrol
+        cursor.execute("SELECT COUNT(*) FROM app_patrol")
+        app_patrol_count = cursor.fetchone()[0]
+
+        # Get total records in scan_metadata
+        cursor.execute("SELECT COUNT(*) FROM scan_metadata")
+        scan_metadata_count = cursor.fetchone()[0]
+
+        conn.close()
+
+        return jsonify({
+            'tables': table_count,
+            'total_records': app_patrol_count + scan_metadata_count,
+            'app_patrol_records': app_patrol_count,
+            'scan_metadata_records': scan_metadata_count
+        })
+
+    except Exception as e:
+        print(f"Error getting database stats: {e}")
+        return jsonify({'error': 'Failed to retrieve database statistics'}), 500
 
 @app.route('/api/scans', methods=['GET'])
 def get_scans():

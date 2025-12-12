@@ -13,7 +13,8 @@ import {
   RefreshCw,
   LogOut,
   Shield,
-  ChevronDown
+  ChevronDown,
+  Key
 } from 'lucide-react'
 
 interface HeaderProps {
@@ -125,6 +126,17 @@ export function Header({ onRefresh }: HeaderProps) {
                     User Management
                   </button>
                 )}
+
+                <button
+                  onClick={() => {
+                    setIsUserMenuOpen(false)
+                    router.push('/settings/account')
+                  }}
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-accent rounded-md transition-colors"
+                >
+                  <Key className="h-4 w-4" />
+                  Account Settings
+                </button>
 
                 <button
                   onClick={handleLogout}

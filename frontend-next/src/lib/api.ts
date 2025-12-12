@@ -169,6 +169,21 @@ export const api = {
     return fetchAPI<CVEDetails>(`/cves/${cveId}/details`)
   },
 
+  // Password management
+  async adminResetPassword(userId: number, newPassword: string): Promise<{ message: string }> {
+    return fetchAPI(`/auth/users/${userId}/password`, {
+      method: 'PUT',
+      body: JSON.stringify({ new_password: newPassword }),
+    })
+  },
+
+  async changeOwnPassword(currentPassword: string, newPassword: string): Promise<{ message: string }> {
+    return fetchAPI('/auth/me/password', {
+      method: 'PUT',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    })
+  },
+
   // Health check
   async healthCheck(): Promise<{ status: string; timestamp: string; ai_enabled: boolean }> {
     return fetchAPI('/health')

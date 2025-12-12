@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { ScanResult } from '@/types'
 import { api } from '@/lib/api'
+import { getAuthHeaders } from '@/contexts/AuthContext'
 import { DataTable, DataTableColumn } from '@/components/ui/data-table'
 import { 
   Play, 
@@ -515,9 +516,7 @@ export function ScanManagement() {
       // Start real scan via API
       const response = await fetch('/api/scans/start', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           name: newScanConfig.name,
           targets: targets,

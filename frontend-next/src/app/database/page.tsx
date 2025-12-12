@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { 
+import {
   Database,
   Play,
   Download,
@@ -23,18 +23,21 @@ import {
   CheckCircle,
   Terminal
 } from 'lucide-react'
+import { getAuthHeaders } from '@/contexts/AuthContext'
 
 export default function DatabasePage() {
   const [query, setQuery] = useState('SELECT * FROM app_patrol LIMIT 10;')
   const [results, setResults] = useState<any[]>([])
+  const [columns, setColumns] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [dbStats, setDbStats] = useState({ tables: 0, total_records: 0 })
 
   const sampleQueries = [
     {
       name: 'Critical Vulnerabilities',
       description: 'Show all critical severity vulnerabilities',
-      query: "SELECT IMAGE_TAG, VULNERABILITY, SEVERITY FROM app_patrol WHERE SEVERITY = 'Critical' LIMIT 20;"
+      query: "SELECT IMAGE_TAG, VULNERABILITY, SEVERITY FROM app_patrol WHERE SEVERITY = 'CRITICAL' LIMIT 20;"
     },
     {
       name: 'Vulnerability Summary',
@@ -50,49 +53,55 @@ export default function DatabasePage() {
       name: 'Package Vulnerabilities',
       description: 'Show vulnerable packages and their fixes',
       query: "SELECT NAME, VULNERABILITY, INSTALLED, FIXED_IN FROM app_patrol WHERE FIXED_IN IS NOT NULL LIMIT 15;"
+    },
+    {
+      name: 'Scan Metadata',
+      description: 'Show scan history with vulnerability counts',
+      query: "SELECT user_scan_name, scan_timestamp, total_vulnerabilities_found, critical_count, high_count FROM scan_metadata ORDER BY scan_timestamp DESC LIMIT 10;"
     }
   ]
+
+  // Fetch database stats on mount
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch('/api/database/stats', {
+          headers: getAuthHeaders()
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setDbStats(data)
+        }
+      } catch (err) {
+        console.error('Failed to fetch database stats:', err)
+      }
+    }
+    fetchStats()
+  }, [])
 
   const executeQuery = async () => {
     setLoading(true)
     setError('')
-    
+    setResults([])
+    setColumns([])
+
     try {
-      // In a real implementation, this would call the API
-      // For now, simulate with sample data
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      if (query.toLowerCase().includes('count')) {
-        setResults([
-          { SEVERITY: 'Critical', count: 671 },
-          { SEVERITY: 'High', count: 3339 },
-          { SEVERITY: 'Medium', count: 3353 },
-          { SEVERITY: 'Low', count: 922 },
-          { SEVERITY: 'Negligible', count: 2814 },
-          { SEVERITY: 'Unknown', count: 380 }
-        ])
-      } else {
-        setResults([
-          { 
-            IMAGE_TAG: 'nginx:latest', 
-            VULNERABILITY: 'CVE-2023-44487', 
-            SEVERITY: 'Critical',
-            NAME: 'nginx',
-            INSTALLED: '1.21.0',
-            FIXED_IN: '1.21.6'
-          },
-          { 
-            IMAGE_TAG: 'postgres:14', 
-            VULNERABILITY: 'CVE-2023-39417', 
-            SEVERITY: 'High',
-            NAME: 'postgresql',
-            INSTALLED: '14.2',
-            FIXED_IN: '14.9'
-          }
-        ])
+      const response = await fetch('/api/database/query', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ query })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Query execution failed')
       }
+
+      setColumns(data.columns || [])
+      setResults(data.rows || [])
     } catch (err) {
-      setError('Query execution failed')
+      setError(err instanceof Error ? err.message : 'Query execution failed')
     } finally {
       setLoading(false)
     }
@@ -137,37 +146,37 @@ export default function DatabasePage() {
               <div className="flex items-center gap-2">
                 <Table className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <div className="text-2xl font-bold">2</div>
+                  <div className="text-2xl font-bold">{dbStats.tables}</div>
                   <div className="text-xs text-muted-foreground">Tables</div>
                 </div>
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <div className="text-2xl font-bold">11,479</div>
+                  <div className="text-2xl font-bold">{dbStats.total_records.toLocaleString()}</div>
                   <div className="text-xs text-muted-foreground">Total Records</div>
                 </div>
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-2">
                 <Database className="h-4 w-4 text-muted-foreground" />
                 <div>
-                  <div className="text-2xl font-bold">2.2 MB</div>
-                  <div className="text-xs text-muted-foreground">Database Size</div>
+                  <div className="text-2xl font-bold">SQLite</div>
+                  <div className="text-xs text-muted-foreground">Database Type</div>
                 </div>
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-2">
@@ -240,9 +249,9 @@ export default function DatabasePage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b">
-                            {Object.keys(results[0]).map((key) => (
-                              <th key={key} className="text-left p-2 font-medium">
-                                {key}
+                            {columns.map((col) => (
+                              <th key={col} className="text-left p-2 font-medium">
+                                {col}
                               </th>
                             ))}
                           </tr>
@@ -250,24 +259,29 @@ export default function DatabasePage() {
                         <tbody>
                           {results.map((row, i) => (
                             <tr key={i} className="border-b hover:bg-muted/50">
-                              {Object.values(row).map((value: any, j) => (
-                                <td key={j} className="p-2">
-                                  {typeof value === 'string' && value.startsWith('CVE-') ? (
-                                    <Badge variant="outline">{value}</Badge>
-                                  ) : typeof value === 'string' && ['Critical', 'High', 'Medium', 'Low'].includes(value) ? (
-                                    <Badge variant={
-                                      value === 'Critical' ? 'critical' :
-                                      value === 'High' ? 'high' :
-                                      value === 'Medium' ? 'medium' :
-                                      value === 'Low' ? 'low' : 'outline'
-                                    }>
-                                      {value}
-                                    </Badge>
-                                  ) : (
-                                    String(value)
-                                  )}
-                                </td>
-                              ))}
+                              {columns.map((col, j) => {
+                                const value = row[col]
+                                return (
+                                  <td key={j} className="p-2">
+                                    {typeof value === 'string' && (value.startsWith('CVE-') || value.startsWith('GHSA-')) ? (
+                                      <Badge variant="outline">{value}</Badge>
+                                    ) : typeof value === 'string' && ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(value.toUpperCase()) ? (
+                                      <Badge variant={
+                                        value.toUpperCase() === 'CRITICAL' ? 'destructive' :
+                                        value.toUpperCase() === 'HIGH' ? 'destructive' :
+                                        value.toUpperCase() === 'MEDIUM' ? 'secondary' :
+                                        'outline'
+                                      }>
+                                        {value}
+                                      </Badge>
+                                    ) : value === null ? (
+                                      <span className="text-muted-foreground">NULL</span>
+                                    ) : (
+                                      String(value)
+                                    )}
+                                  </td>
+                                )
+                              })}
                             </tr>
                           ))}
                         </tbody>
