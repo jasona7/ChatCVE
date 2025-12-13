@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { MainLayout } from '@/components/layout/main-layout'
 import { VulnerabilityStatsComponent } from '@/components/dashboard/vulnerability-stats'
+import { DashboardCharts } from '@/components/dashboard/dashboard-charts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -89,6 +90,9 @@ export default function Dashboard() {
 
         {/* Vulnerability Stats */}
         <VulnerabilityStatsComponent stats={stats} loading={loading} />
+
+        {/* Dashboard Charts */}
+        <DashboardCharts />
 
         <div className="grid gap-6 md:grid-cols-2">
           {/* Recent Activity */}

@@ -108,6 +108,11 @@ export const api = {
     return fetchAPI<VulnerabilityStats>('/stats/vulnerabilities')
   },
 
+  // Chart data for dashboard
+  async getChartData(): Promise<any> {
+    return fetchAPI('/stats/charts')
+  },
+
   // Activity
   async getRecentActivity(): Promise<ActivityItem[]> {
     return fetchAPI<ActivityItem[]>('/activity/recent')

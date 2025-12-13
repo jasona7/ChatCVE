@@ -2,6 +2,7 @@
 
 # Claude Code artifacts
 .claude/
+CLAUDE.md
 
 # Environment and Configuration
 .env*

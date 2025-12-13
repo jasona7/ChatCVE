@@ -783,6 +783,98 @@ def get_vulnerability_stats():
         print(f"Error getting vulnerability stats: {e}")
         return jsonify({'error': 'Failed to retrieve statistics'}), 500
 
+@app.route('/api/stats/charts', methods=['GET'])
+def get_chart_data():
+    """Get data formatted for dashboard charts"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+
+        # Severity distribution for donut chart
+        cursor.execute("""
+            SELECT SEVERITY, COUNT(*) as count
+            FROM app_patrol
+            WHERE VULNERABILITY LIKE 'CVE-%' OR VULNERABILITY LIKE 'GHSA-%'
+            GROUP BY SEVERITY
+            ORDER BY
+                CASE SEVERITY
+                    WHEN 'CRITICAL' THEN 1
+                    WHEN 'HIGH' THEN 2
+                    WHEN 'MEDIUM' THEN 3
+                    WHEN 'LOW' THEN 4
+                    ELSE 5
+                END
+        """)
+        severity_data = [{'name': row[0] or 'Unknown', 'value': row[1]} for row in cursor.fetchall()]
+
+        # Top 10 vulnerable images for bar chart
+        cursor.execute("""
+            SELECT IMAGE_TAG, COUNT(*) as vulnerability_count
+            FROM app_patrol
+            WHERE VULNERABILITY LIKE 'CVE-%' OR VULNERABILITY LIKE 'GHSA-%'
+            GROUP BY IMAGE_TAG
+            ORDER BY vulnerability_count DESC
+            LIMIT 10
+        """)
+        top_images = [{'image': row[0], 'vulnerabilities': row[1]} for row in cursor.fetchall()]
+
+        # Scan history for area chart (last 10 scans)
+        cursor.execute("""
+            SELECT
+                user_scan_name,
+                scan_timestamp,
+                critical_count,
+                high_count,
+                medium_count,
+                low_count,
+                total_vulnerabilities_found
+            FROM scan_metadata
+            ORDER BY scan_timestamp DESC
+            LIMIT 10
+        """)
+        scan_history = []
+        for row in cursor.fetchall():
+            scan_history.append({
+                'name': row[0] or 'Unnamed',
+                'date': row[1],
+                'Critical': row[2] or 0,
+                'High': row[3] or 0,
+                'Medium': row[4] or 0,
+                'Low': row[5] or 0,
+                'Total': row[6] or 0
+            })
+        # Reverse to show oldest first for timeline
+        scan_history.reverse()
+
+        # Top vulnerable packages
+        cursor.execute("""
+            SELECT NAME, COUNT(*) as vuln_count,
+                   SUM(CASE WHEN SEVERITY = 'CRITICAL' THEN 1 ELSE 0 END) as critical_count
+            FROM app_patrol
+            WHERE (VULNERABILITY LIKE 'CVE-%' OR VULNERABILITY LIKE 'GHSA-%')
+              AND NAME IS NOT NULL AND NAME != ''
+            GROUP BY NAME
+            ORDER BY vuln_count DESC
+            LIMIT 10
+        """)
+        top_packages = [{'package': row[0], 'vulnerabilities': row[1], 'critical': row[2]} for row in cursor.fetchall()]
+
+        conn.close()
+
+        return jsonify({
+            'severityDistribution': severity_data,
+            'topVulnerableImages': top_images,
+            'scanHistory': scan_history,
+            'topVulnerablePackages': top_packages
+        })
+
+    except Exception as e:
+        print(f"Error getting chart data: {e}")
+        return jsonify({'error': 'Failed to retrieve chart data'}), 500
+
 @app.route('/api/activity/recent', methods=['GET'])
 def get_recent_activity():
     """Get recent scan activity"""
