@@ -189,6 +189,30 @@ export const api = {
     })
   },
 
+  // User preferences
+  async getUserPreference<T = any>(key: string): Promise<T | null> {
+    try {
+      const data = await fetchAPI<{ key: string; value: T | null }>(`/user/preferences/${key}`)
+      return data.value
+    } catch (error) {
+      console.error(`Error getting preference ${key}:`, error)
+      return null
+    }
+  },
+
+  async setUserPreference<T = any>(key: string, value: T): Promise<void> {
+    await fetchAPI(`/user/preferences/${key}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    })
+  },
+
+  async deleteUserPreference(key: string): Promise<void> {
+    await fetchAPI(`/user/preferences/${key}`, {
+      method: 'DELETE',
+    })
+  },
+
   // Health check
   async healthCheck(): Promise<{ status: string; timestamp: string; ai_enabled: boolean }> {
     return fetchAPI('/health')

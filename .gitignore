@@ -155,3 +155,4 @@ scan.log
 *.bak
 *.backup
 *.old
+.env

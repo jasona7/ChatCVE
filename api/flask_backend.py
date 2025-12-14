@@ -371,6 +371,7 @@ def check_setup():
     try:
         # First ensure users table exists
         init_users_table()
+        init_user_preferences_table()
         return jsonify({'setupComplete': admin_exists()})
     except Exception as e:
         print(f"Error checking setup: {e}")
@@ -381,6 +382,7 @@ def setup_admin():
     """Create the first admin user (only works if no admin exists)"""
     try:
         init_users_table()
+        init_user_preferences_table()
 
         if admin_exists():
             return jsonify({'error': 'Setup already complete'}), 400
@@ -648,6 +650,126 @@ def change_own_password():
     except Exception as e:
         print(f"Error changing password: {e}")
         return jsonify({'error': 'Failed to change password'}), 500
+
+# =============================================================================
+# User Preferences System
+# =============================================================================
+
+def init_user_preferences_table():
+    """Initialize the user_preferences table if it doesn't exist"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS user_preferences (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                preference_key TEXT NOT NULL,
+                preference_value TEXT,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                UNIQUE(user_id, preference_key)
+            )
+        """)
+        conn.commit()
+        conn.close()
+        print("User preferences table initialized")
+    except Exception as e:
+        print(f"Failed to initialize user preferences table: {e}")
+
+@app.route('/api/user/preferences/<key>', methods=['GET'])
+@require_auth()
+def get_user_preference(key):
+    """Get a user preference by key"""
+    try:
+        user_id = g.current_user['user_id']
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT preference_value FROM user_preferences WHERE user_id = ? AND preference_key = ?",
+            (user_id, key)
+        )
+        result = cursor.fetchone()
+        conn.close()
+
+        if result and result['preference_value']:
+            try:
+                # Try to parse as JSON
+                value = json.loads(result['preference_value'])
+                return jsonify({'key': key, 'value': value})
+            except json.JSONDecodeError:
+                # Return as string if not valid JSON
+                return jsonify({'key': key, 'value': result['preference_value']})
+        else:
+            return jsonify({'key': key, 'value': None})
+
+    except Exception as e:
+        print(f"Error getting user preference: {e}")
+        return jsonify({'error': 'Failed to get preference'}), 500
+
+@app.route('/api/user/preferences/<key>', methods=['PUT'])
+@require_auth()
+def set_user_preference(key):
+    """Set a user preference by key"""
+    try:
+        user_id = g.current_user['user_id']
+        data = request.get_json()
+        value = data.get('value')
+
+        # Serialize value to JSON string
+        if value is not None:
+            value_str = json.dumps(value) if not isinstance(value, str) else value
+        else:
+            value_str = None
+
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+        # Upsert: Insert or update if exists
+        cursor.execute("""
+            INSERT INTO user_preferences (user_id, preference_key, preference_value, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, preference_key)
+            DO UPDATE SET preference_value = ?, updated_at = ?
+        """, (user_id, key, value_str, datetime.now().isoformat(),
+              value_str, datetime.now().isoformat()))
+        conn.commit()
+        conn.close()
+
+        return jsonify({'message': 'Preference saved', 'key': key})
+
+    except Exception as e:
+        print(f"Error setting user preference: {e}")
+        return jsonify({'error': 'Failed to save preference'}), 500
+
+@app.route('/api/user/preferences/<key>', methods=['DELETE'])
+@require_auth()
+def delete_user_preference(key):
+    """Delete a user preference by key"""
+    try:
+        user_id = g.current_user['user_id']
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM user_preferences WHERE user_id = ? AND preference_key = ?",
+            (user_id, key)
+        )
+        conn.commit()
+        conn.close()
+
+        return jsonify({'message': 'Preference deleted', 'key': key})
+
+    except Exception as e:
+        print(f"Error deleting user preference: {e}")
+        return jsonify({'error': 'Failed to delete preference'}), 500
 
 # =============================================================================
 # Public Endpoints
@@ -1778,13 +1900,13 @@ def get_cve_details(cve_id):
 
 if __name__ == '__main__':
     print("Starting ChatCVE API Backend...")
-    
+
     # Initialize the AI agent
     agent_initialized = initialize_agent()
-    
+
     if not agent_initialized:
         print("Running without AI capabilities")
-    
+
     # Check database connection
     conn = get_db_connection()
     if conn:
@@ -1792,6 +1914,9 @@ if __name__ == '__main__':
         conn.close()
     else:
         print(f"Warning: Could not connect to database: {DATABASE_PATH}")
+
+    # Initialize user preferences table
+    init_user_preferences_table()
     
     print("API Backend ready!")
     app.run(host='0.0.0.0', port=5000, debug=True)
