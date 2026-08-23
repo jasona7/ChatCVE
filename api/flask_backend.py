@@ -1885,6 +1885,7 @@ def bootstrap_app():
     if not agent_initialized:
         print("Running without AI capabilities")
 
+    init_users_table()
     init_chat_history_table()
     init_user_preferences_table()
 

@@ -172,6 +172,9 @@ def create_readonly_database(db_path: str):
     has SQLite's PRAGMA query_only enabled. Any INSERT/UPDATE/DELETE/DDL
     attempted by the agent fails at the database level, regardless of what
     the prompt says.
+
+    Only the scan-data tables are exposed to the agent - auth/history tables
+    are off limits.
     """
     from sqlalchemy import create_engine, event
     from langchain_community.utilities import SQLDatabase
@@ -184,7 +187,10 @@ def create_readonly_database(db_path: str):
         cursor.execute("PRAGMA query_only = ON")
         cursor.close()
 
-    return SQLDatabase(engine=engine)
+    return SQLDatabase(
+        engine=engine,
+        include_tables=['scan_metadata', 'app_patrol'],
+    )
 
 # ---------------------------------------------------------------------------
 # System prompt
