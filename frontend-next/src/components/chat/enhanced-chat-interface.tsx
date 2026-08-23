@@ -29,6 +29,8 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { motion, AnimatePresence } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 interface PopularQuestion {
   id: string
@@ -105,6 +107,7 @@ export function EnhancedChatInterface({ onQuestionSelect }: EnhancedChatInterfac
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [currentStep, setCurrentStep] = useState<string>('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -135,39 +138,80 @@ export function EnhancedChatInterface({ onQuestionSelect }: EnhancedChatInterfac
   const handleSend = async () => {
     if (!input.trim() || isLoading) return
 
+    const question = input.trim()
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
-      question: input.trim(),
+      question,
+      response: '',
+      timestamp: new Date().toISOString()
+    }
+    // Assistant placeholder that fills in as tokens stream in
+    const assistantMessage: ChatMessage = {
+      id: (Date.now() + 1).toString(),
+      question: '',
       response: '',
       timestamp: new Date().toISOString()
     }
 
-    setMessages(prev => [...prev, userMessage])
+    setMessages(prev => [...prev, userMessage, assistantMessage])
     setInput('')
     setIsLoading(true)
+    setCurrentStep('Thinking...')
+
+    let streamed = ''
 
     try {
-      const response = await api.sendMessage(input.trim())
-      
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        question: '',
-        response: response,
-        timestamp: new Date().toISOString()
-      }
-
-      setMessages(prev => [...prev, assistantMessage])
+      await api.streamMessage(question, {
+        onToken: (token) => {
+          streamed += token
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === assistantMessage.id ? { ...m, response: streamed } : m
+            )
+          )
+        },
+        onStep: (tool) => {
+          const stepLabels: Record<string, string> = {
+            sql_db_query: 'Querying vulnerability database...',
+            sql_db_schema: 'Reviewing database schema...',
+            sql_db_list_tables: 'Listing database tables...',
+            sql_db_query_checker: 'Validating SQL query...'
+          }
+          setCurrentStep(stepLabels[tool] || 'Analyzing...')
+        },
+        onDone: (fullResponse) => {
+          const finalText = fullResponse || streamed
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === assistantMessage.id
+                ? { ...m, response: finalText, timestamp: new Date().toISOString() }
+                : m
+            )
+          )
+        },
+        onError: (message) => {
+          console.error('Chat stream error:', message)
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === assistantMessage.id
+                ? { ...m, response: 'Sorry, I encountered an error processing your request. Please try again.' }
+                : m
+            )
+          )
+        }
+      })
     } catch (error) {
       console.error('Failed to send message:', error)
-      const errorMessage: ChatMessage = {
-        id: (Date.now() + 1).toString(),
-        question: '',
-        response: 'Sorry, I encountered an error processing your request. Please try again.',
-        timestamp: new Date().toISOString()
-      }
-      setMessages(prev => [...prev, errorMessage])
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === assistantMessage.id
+            ? { ...m, response: 'Sorry, I encountered an error processing your request. Please try again.' }
+            : m
+        )
+      )
     } finally {
       setIsLoading(false)
+      setCurrentStep('')
     }
   }
 
@@ -183,6 +227,9 @@ export function EnhancedChatInterface({ onQuestionSelect }: EnhancedChatInterfac
     
     if (confirm('Are you sure you want to clear all chat messages? This action cannot be undone.')) {
       setMessages([])
+      api.clearChatHistory().catch(error => {
+        console.error('Failed to clear chat history on server:', error)
+      })
     }
   }
 
@@ -311,10 +358,8 @@ export function EnhancedChatInterface({ onQuestionSelect }: EnhancedChatInterfac
                                       {format(new Date(message.timestamp), 'MMM d, HH:mm')}
                                     </span>
                                   </div>
-                                  <div className="prose prose-sm max-w-none">
-                                    <pre className="whitespace-pre-wrap text-sm leading-relaxed bg-muted/50 p-3 rounded-md overflow-x-auto">
-                                      {message.response}
-                                    </pre>
+                                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                                    <MarkdownContent content={message.response} />
                                   </div>
                                   <div className="flex gap-1 mt-3">
                                     <Button
@@ -346,7 +391,7 @@ export function EnhancedChatInterface({ onQuestionSelect }: EnhancedChatInterfac
                   ))}
                 </AnimatePresence>
 
-                {isLoading && (
+                {isLoading && !messages.some(m => m.response) && (
                   <motion.div 
                     initial={{ opacity: 0, scale: 0.8 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -362,7 +407,9 @@ export function EnhancedChatInterface({ onQuestionSelect }: EnhancedChatInterfac
                             <Bot className="h-5 w-5 text-primary" />
                           </motion.div>
                           <div>
-                            <span className="text-sm text-muted-foreground">ChatCVE is analyzing...</span>
+                            <span className="text-sm text-muted-foreground">
+                              {currentStep || 'ChatCVE is analyzing...'}
+                            </span>
                             <div className="flex gap-1 mt-1">
                               {[0, 1, 2].map((i) => (
                                 <motion.div
@@ -491,3 +538,83 @@ export function EnhancedChatInterface({ onQuestionSelect }: EnhancedChatInterfac
 }
 
 
+/**
+ * Renders AI responses as rich Markdown with styled tables and SQL code blocks.
+ */
+function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        pre: ({ children }) => (
+          <pre className="bg-muted/60 dark:bg-muted/30 border border-border rounded-md p-3 overflow-x-auto text-xs leading-relaxed my-2">
+            {children}
+          </pre>
+        ),
+        code: ({ className, children, ...props }) => (
+          <code
+            className={
+              className
+                ? className
+                : 'bg-muted/60 dark:bg-muted/40 px-1 py-0.5 rounded text-xs font-mono'
+            }
+            {...props}
+          >
+            {children}
+          </code>
+        ),
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-2 rounded-md border border-border">
+            <table className="w-full text-xs border-collapse">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => (
+          <thead className="bg-muted/50 dark:bg-muted/30">{children}</thead>
+        ),
+        th: ({ children }) => (
+          <th className="border-b border-border px-3 py-2 text-left font-semibold">
+            {children}
+          </th>
+        ),
+        td: ({ children }) => (
+          <td className="border-b border-border/50 px-3 py-1.5 align-top">
+            {children}
+          </td>
+        ),
+        ul: ({ children }) => (
+          <ul className="list-disc pl-5 my-2 space-y-1">{children}</ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="list-decimal pl-5 my-2 space-y-1">{children}</ol>
+        ),
+        a: ({ children, href }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-primary underline underline-offset-2"
+          >
+            {children}
+          </a>
+        ),
+        strong: ({ children }) => (
+          <strong className="font-semibold text-foreground">{children}</strong>
+        ),
+        p: ({ children }) => (
+          <p className="leading-relaxed my-1.5 first:mt-0 last:mb-0">{children}</p>
+        ),
+        h1: ({ children }) => (
+          <h1 className="text-base font-semibold mt-3 mb-1.5">{children}</h1>
+        ),
+        h2: ({ children }) => (
+          <h2 className="text-sm font-semibold mt-3 mb-1.5">{children}</h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className="text-sm font-semibold mt-2 mb-1">{children}</h3>
+        ),
+      }}
+    >
+      {content || ''}
+    </ReactMarkdown>
+  )
+}

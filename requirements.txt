@@ -5,10 +5,16 @@
 flask==2.3.3
 flask-cors==4.0.0
 
-# AI and Language Processing
-langchain==0.1.0
-langchain-openai==0.0.2
-langchain-community==0.0.10
+# AI and Language Processing (provider-agnostic - see api/ai_service.py)
+langchain>=0.3,<0.5
+langchain-community>=0.3,<0.6
+sqlalchemy>=2.0
+
+# AI Providers - install the one(s) you use; extras are harmless
+langchain-openai>=0.2,<1          # openai / azure-openai
+langchain-anthropic>=0.2,<1       # anthropic
+langchain-google-genai>=2.0,<3    # gemini
+langchain-ollama>=0.2,<1          # ollama (local models)
 
 # Database and Data Processing
 sqlite3

@@ -99,8 +99,92 @@ export const api = {
     return data.response
   },
 
+  /**
+   * Send a chat message and stream the AI response via Server-Sent Events.
+   * Falls back to the non-streaming endpoint if streaming is unavailable.
+   */
+  async streamMessage(
+    question: string,
+    callbacks: {
+      onToken?: (token: string) => void
+      onStep?: (tool: string) => void
+      onDone?: (fullResponse: string) => void
+      onError?: (message: string) => void
+    }
+  ): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE}/chat/stream`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ question }),
+      })
+
+      if (!response.ok || !response.body) {
+        // Non-streaming fallback (e.g., older backend, proxy buffering)
+        const fallback = await this.sendMessage(question)
+        callbacks.onToken?.(fallback)
+        callbacks.onDone?.(fallback)
+        return
+      }
+
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let finalResponse = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() ?? ''
+
+        for (const part of parts) {
+          const line = part.trim()
+          if (!line.startsWith('data:')) continue
+          try {
+            const event = JSON.parse(line.slice(5).trim())
+            switch (event.type) {
+              case 'token':
+                callbacks.onToken?.(event.content ?? '')
+                break
+              case 'step':
+                callbacks.onStep?.(event.tool ?? '')
+                break
+              case 'done':
+                finalResponse = event.response ?? ''
+                callbacks.onDone?.(finalResponse)
+                break
+              case 'error':
+                callbacks.onError?.(event.message ?? 'Unknown error')
+                break
+            }
+          } catch {
+            // Ignore malformed SSE chunks
+          }
+        }
+      }
+
+      // If the server never sent a done event, treat what we have as final
+      if (!finalResponse) {
+        callbacks.onDone?.('')
+      }
+    } catch (error) {
+      callbacks.onError?.(
+        error instanceof Error ? error.message : 'Request failed'
+      )
+    }
+  },
+
   async getChatHistory(): Promise<ChatMessage[]> {
     return fetchAPI<ChatMessage[]>('/chat/history')
+  },
+
+  async clearChatHistory(): Promise<{ message: string }> {
+    return fetchAPI<{ message: string }>('/chat/history', {
+      method: 'DELETE',
+    })
   },
 
   // Vulnerability stats

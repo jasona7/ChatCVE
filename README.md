@@ -418,16 +418,39 @@ The AI chat interface can now answer sophisticated questions about your scan met
 ### Environment Variables
 ```bash
 # Core Configuration
-OPENAI_API_KEY=your_openai_api_key_here    # Required for AI chat
+AI_PROVIDER=openai                         # AI provider: openai | azure-openai | anthropic | bedrock | gemini | ollama
+LLM_MODEL=gpt-4o                           # Optional model override (per-provider defaults built in)
+OPENAI_API_KEY=your_openai_api_key_here    # Required for OpenAI provider
 NVD_API_KEY=your_nvd_api_key_here          # Optional, increases rate limits
 DATABASE_PATH=app_patrol.db                # SQLite database location
 FLASK_ENV=development                      # Flask environment
 
+# Provider-specific (only needed for the chosen AI_PROVIDER)
+AZURE_OPENAI_ENDPOINT=                     # Azure OpenAI endpoint URL
+AZURE_OPENAI_API_KEY=                      # Azure OpenAI key
+AZURE_OPENAI_DEPLOYMENT=                   # Azure deployment name
+ANTHROPIC_API_KEY=                         # Anthropic Claude
+GOOGLE_API_KEY=                            # Google Gemini
+OLLAMA_BASE_URL=http://localhost:11434     # Ollama (local/private models, no API key)
+OPENAI_BASE_URL=                           # Custom OpenAI-compatible endpoint (vLLM, LiteLLM)
+
 # Optional Configuration
+LLM_TEMPERATURE=0                          # AI sampling temperature
+JWT_SECRET_KEY=change-me                   # JWT signing secret (set in production!)
+JWT_EXPIRATION_HOURS=24                    # Token lifetime
 FLASK_DEBUG=1                              # Enable debug mode
 PORT=5000                                  # Backend port (default: 5000)
 FRONTEND_PORT=3000                         # Frontend port (default: 3000)
 ```
+
+### AI Chat Architecture
+The AI analyst uses a **tool-calling SQL agent** (LangChain) connected to your scan
+database in **enforced read-only mode** — the agent can answer questions about scans,
+CVEs, and packages but can never modify data. Responses stream to the UI in real time
+via Server-Sent Events, rendered as Markdown with tables and SQL code blocks. Chat
+history is persisted per-user in SQLite.
+
+For fully offline / private deployments, set `AI_PROVIDER=ollama` to run local models.
 
 ### Scan Input Formats
 

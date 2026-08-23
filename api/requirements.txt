@@ -1,8 +1,17 @@
 # ChatCVE Backend Dependencies
 flask==2.3.3
 flask-cors==4.0.0
-langchain==0.1.0
-langchain-openai==0.0.2
-langchain-community==0.0.10
 gunicorn==21.2.0
 PyJWT==2.8.0
+
+# AI / LLM stack (provider-agnostic - see ai_service.py)
+# Core LangChain + SQL agent tooling
+langchain>=0.3,<0.5
+langchain-community>=0.3,<0.6
+sqlalchemy>=2.0
+
+# Providers - install the one(s) you use; extras are harmless
+langchain-openai>=0.2,<1          # openai / azure-openai
+langchain-anthropic>=0.2,<1       # anthropic
+langchain-google-genai>=2.0,<3    # gemini
+langchain-ollama>=0.2,<1          # ollama (local models)

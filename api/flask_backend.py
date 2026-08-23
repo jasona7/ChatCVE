@@ -10,16 +10,17 @@ import sqlite3
 import asyncio
 from datetime import datetime, timedelta
 from functools import wraps
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify, g, Response, stream_with_context
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 import jwt
 from scan_service import scanner
-from langchain_openai import ChatOpenAI
-from langchain_community.agent_toolkits import SQLDatabaseToolkit
-from langchain_community.utilities import SQLDatabase
-from langchain_community.agent_toolkits.sql.base import create_sql_agent
-from langchain.agents.agent_types import AgentType
+from ai_service import (
+    AIServiceError,
+    build_agent_executor,
+    get_provider_info,
+    stream_agent_events,
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -31,196 +32,36 @@ JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'chatcve-secret-key-change-in-produ
 JWT_EXPIRATION_HOURS = int(os.getenv('JWT_EXPIRATION_HOURS', 24))
 
 # Initialize ChatCVE components
-llm = None
 agent_executor = None
-chat_history = []
-
-def get_contextual_examples(question: str) -> str:
-    """Generate contextual SQL examples based on question type"""
-    question_lower = question.lower()
-    
-    examples = ""
-    
-    if any(word in question_lower for word in ['scan', 'scans', 'when', 'recent']):
-        examples += """
-
-🔍 SCAN QUERY EXAMPLES:
-Example: "Show me recent scans"
-SQL: SELECT user_scan_name, scan_timestamp, total_vulnerabilities_found, scan_status 
-     FROM scan_metadata 
-     ORDER BY scan_timestamp DESC LIMIT 10;
-
-Example: "Which scans took longer than 5 minutes?"
-SQL: SELECT user_scan_name, scan_duration, total_vulnerabilities_found 
-     FROM scan_metadata 
-     WHERE scan_duration > 300 
-     ORDER BY scan_duration DESC;
-"""
-    
-    if any(word in question_lower for word in ['vulnerability', 'vulnerabilities', 'cve', 'critical', 'high']):
-        examples += """
-
-🚨 VULNERABILITY QUERY EXAMPLES:
-Example: "Show critical vulnerabilities by image"
-SQL: SELECT ap.IMAGE_TAG, COUNT(*) as critical_count, GROUP_CONCAT(DISTINCT ap.VULNERABILITY) as cves
-     FROM app_patrol ap 
-     WHERE ap.SEVERITY = 'CRITICAL' 
-     GROUP BY ap.IMAGE_TAG 
-     ORDER BY critical_count DESC;
-
-Example: "Compare vulnerability counts across scans"
-SQL: SELECT sm.user_scan_name, sm.critical_count, sm.high_count, sm.medium_count, sm.low_count
-     FROM scan_metadata sm 
-     ORDER BY sm.scan_timestamp DESC;
-"""
-    
-    if any(word in question_lower for word in ['performance', 'duration', 'packages', 'risk']):
-        examples += """
-
-⚡ PERFORMANCE QUERY EXAMPLES:
-Example: "Show scan performance metrics"
-SQL: SELECT user_scan_name, scan_duration, total_packages_scanned, 
-            (total_vulnerabilities_found * 1.0 / total_packages_scanned) as vuln_ratio,
-            risk_score
-     FROM scan_metadata 
-     WHERE total_packages_scanned > 0
-     ORDER BY risk_score DESC;
-"""
-    
-    return examples
-
-def get_enhanced_database_context():
-    """Generate comprehensive database context with schema details and data samples"""
-    
-    context = """
-
-📊 DATABASE SCHEMA CONTEXT:
-
-🏗️ TABLE: scan_metadata (Primary table for scan-level queries)
-├── scan_timestamp (TEXT, PRIMARY KEY) - "2024-01-15 14:30:22"
-├── user_scan_name (TEXT) - "Production EKS Cluster Scan" 
-├── image_count (INTEGER) - Number of container images scanned
-├── scan_duration (INTEGER) - Scan time in seconds
-├── total_packages_scanned (INTEGER) - Total packages analyzed
-├── total_vulnerabilities_found (INTEGER) - Total vulnerabilities discovered
-├── scan_status (TEXT) - SUCCESS/FAILED/PARTIAL
-├── scan_type (TEXT) - FULL/INCREMENTAL/RESCAN
-├── risk_score (REAL) - 0-100 security risk score
-├── critical_count, high_count, medium_count, low_count (INTEGER)
-├── exploitable_count (INTEGER) - Exploitable vulnerabilities
-├── scan_initiator (TEXT) - Who started the scan
-├── project_name (TEXT) - Associated project
-└── environment (TEXT) - PRODUCTION/STAGING/DEVELOPMENT
-
-🔍 TABLE: app_patrol (Individual vulnerability records)
-├── NAME (TEXT) - Package name (e.g., "nginx", "openssl")
-├── INSTALLED (TEXT) - Installed version
-├── FIXED_IN (TEXT) - Version that fixes the vulnerability
-├── TYPE (TEXT) - Package type
-├── VULNERABILITY (TEXT) - CVE identifier (e.g., "CVE-2024-1234")
-├── SEVERITY (TEXT) - CRITICAL/HIGH/MEDIUM/LOW
-├── IMAGE_TAG (TEXT) - Container image reference
-└── DATE_ADDED (TEXT) - When vulnerability was recorded
-
-🔗 JOINING STRATEGY:
-- Link tables using: substr(ap.DATE_ADDED, 1, 19) = substr(sm.scan_timestamp, 1, 19)
-- This connects vulnerability records to their scan metadata
-
-⚡ QUERY OPTIMIZATION RULES:
-1. For scan overview questions → Use scan_metadata only
-2. For vulnerability details → Use app_patrol only  
-3. For comprehensive analysis → JOIN both tables
-4. Always use LIMIT for large result sets
-5. Use GROUP BY for aggregations
-"""
-    return context
-
-def validate_query_intent(question: str) -> dict:
-    """Analyze question intent and suggest optimal query approach"""
-    question_lower = question.lower()
-    
-    intent = {
-        'primary_table': 'scan_metadata',
-        'needs_join': False,
-        'query_type': 'overview',
-        'suggested_columns': [],
-        'filters': []
-    }
-    
-    # Determine primary focus
-    if any(word in question_lower for word in ['package', 'cve-', 'vulnerability details', 'fixed in']):
-        intent['primary_table'] = 'app_patrol'
-        intent['suggested_columns'] = ['NAME', 'VULNERABILITY', 'SEVERITY', 'FIXED_IN']
-    
-    # Determine if join needed
-    if any(word in question_lower for word in ['scan', 'when', 'duration']) and \
-       any(word in question_lower for word in ['package', 'vulnerability', 'cve']):
-        intent['needs_join'] = True
-        intent['query_type'] = 'comprehensive'
-    
-    # Suggest filters
-    if 'critical' in question_lower:
-        intent['filters'].append("SEVERITY = 'CRITICAL'")
-    if 'production' in question_lower:
-        intent['filters'].append("environment = 'PRODUCTION'")
-    if 'recent' in question_lower:
-        intent['filters'].append("ORDER BY scan_timestamp DESC LIMIT 10")
-    
-    return intent
+ai_model_name = None
 
 def initialize_agent():
-    """Initialize the ChatCVE AI agent"""
-    global llm, agent_executor
-    
-    if not OPENAI_API_KEY:
-        print("Warning: OPENAI_API_KEY not set. AI features will be disabled.")
+    """Initialize the ChatCVE AI agent via the provider-agnostic AI service."""
+    global agent_executor, ai_model_name
+
+    provider_info = get_provider_info()
+    if not provider_info['configured']:
+        print(
+            f"Warning: AI provider '{provider_info['provider']}' is not fully "
+            "configured. AI features will be disabled."
+        )
         return False
-    
+
     try:
-        llm = ChatOpenAI(
-            model="gpt-4",
-            temperature=0,
-            openai_api_key=OPENAI_API_KEY
+        agent_executor, ai_model_name = build_agent_executor(DATABASE_PATH)
+        print(
+            f"ChatCVE AI agent initialized successfully "
+            f"(provider={provider_info['provider']}, model={ai_model_name})"
         )
-        
-        # Connect to SQLite database - prioritize scan_metadata for scan questions
-        db = SQLDatabase.from_uri(f"sqlite:///{DATABASE_PATH}")
-        toolkit = SQLDatabaseToolkit(db=db, llm=llm)
-        
-        # Enhanced prompt with comprehensive database context
-        enhanced_prompt = f"""
-You are ChatCVE, a security analyst AI assistant specialized in vulnerability management and security analysis.
-
-{get_enhanced_database_context()}
-
-QUERY STRATEGY:
-1. Analyze the question intent first
-2. Choose the appropriate table(s) based on the context above
-3. Explain your approach before writing SQL
-4. Provide actionable security insights in your response
-
-MANDATORY RULES:
-- Never use app_patrol.NAME for scan names (it's package names!)
-- Always use scan_metadata.user_scan_name for scan identification
-- Validate your SQL against the schema above
-- Include relevant security context in responses
-- Use the examples provided as guidance for similar queries
-"""
-
-        agent_executor = create_sql_agent(
-            llm=llm,
-            toolkit=toolkit,
-            verbose=True,
-            agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-            prefix=enhanced_prompt
-        )
-        
-        print("ChatCVE AI agent initialized successfully")
         return True
-        
+    except AIServiceError as e:
+        print(f"Failed to initialize AI agent: {e}")
+        return False
     except Exception as e:
         print(f"Failed to initialize AI agent: {e}")
         return False
+
+
 
 def get_db_connection():
     """Get database connection"""
@@ -778,90 +619,215 @@ def delete_user_preference(key):
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
+    provider = get_provider_info()
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.now().isoformat(),
-        'ai_enabled': agent_executor is not None
+        'ai_enabled': agent_executor is not None,
+        'ai_provider': provider['provider'],
+        'ai_model': ai_model_name or provider['model'],
     })
 
+
+# =============================================================================
+# Chat Endpoints
+# =============================================================================
+
+def init_chat_history_table():
+    """Create the per-user persistent chat history table if needed"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS chat_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                question TEXT NOT NULL,
+                response TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_chat_history_user "
+            "ON chat_history(user_id, created_at)"
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Error initializing chat_history table: {e}")
+
+
+def save_chat_message(user_id: int, question: str, response: str) -> int:
+    """Persist a chat exchange for a user. Returns the new row id."""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO chat_history (user_id, question, response, created_at) "
+            "VALUES (?, ?, ?, ?)",
+            (user_id, question, response, datetime.now().isoformat())
+        )
+        conn.commit()
+        row_id = cursor.lastrowid
+        conn.close()
+        return row_id or 0
+    except Exception as e:
+        print(f"Error saving chat message: {e}")
+        return 0
+
+
 @app.route('/api/chat/history', methods=['GET'])
+@require_auth(roles=['admin', 'user', 'guest'])
 def get_chat_history():
-    """Get chat history"""
-    return jsonify(chat_history)
+    """Get the current user's chat history (persisted in SQLite)"""
+    try:
+        conn = get_db_connection()
+        if not conn:
+            return jsonify({'error': 'Database connection failed'}), 500
+
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT id, question, response, created_at FROM chat_history "
+            "WHERE user_id = ? ORDER BY id ASC",
+            (g.current_user.get('user_id'),)
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        return jsonify([
+            {
+                'id': str(row[0]),
+                'question': row[1],
+                'response': row[2],
+                'timestamp': row[3],
+            }
+            for row in rows
+        ])
+    except Exception as e:
+        print(f"Error loading chat history: {e}")
+        return jsonify({'error': 'Failed to load chat history'}), 500
+
 
 @app.route('/api/chat', methods=['POST'])
 @require_auth(roles=['admin', 'user'])
 def chat():
-    """Handle chat messages"""
+    """Handle chat messages (non-streaming fallback)"""
     try:
         data = request.get_json()
-        question = data.get('question', '').strip()
-        
+        question = (data.get('question') or '').strip() if data else ''
+
         if not question:
             return jsonify({'error': 'Question is required'}), 400
-        
+
         if not agent_executor:
             return jsonify({'error': 'AI agent not available'}), 503
-        
-        # Generate contextual examples based on the question
-        contextual_examples = get_contextual_examples(question)
-        query_intent = validate_query_intent(question)
-        
-        # Enhanced guardrails with dynamic few-shot prompting
-        enhanced_guardrails = f"""
-You are ChatCVE, a DevSecOps AI assistant specialized in vulnerability management and security analysis.
 
-QUERY ANALYSIS:
-- Primary table focus: {query_intent['primary_table']}
-- Needs table join: {query_intent['needs_join']}
-- Query type: {query_intent['query_type']}
+        response = agent_executor.invoke({'input': question})
+        if isinstance(response, dict):
+            output = response.get('output', '')
+            response_text = output if isinstance(output, str) else str(output)
+        else:
+            response_text = str(response)
 
-{contextual_examples}
+        save_chat_message(g.current_user.get('user_id'), question, response_text)
 
-CRITICAL DATABASE GUIDANCE:
-- scan_metadata table: Contains scan-level information (user_scan_name, scan_timestamp, totals, performance)
-- app_patrol table: Contains individual vulnerability records (NAME=package name, VULNERABILITY=CVE-ID, SEVERITY, IMAGE_TAG)
+        return jsonify({'response': response_text})
 
-Guidelines:
-- ALWAYS use scan_metadata for scan names, counts, and metadata queries
-- Use app_patrol for detailed vulnerability analysis and package information  
-- Join tables when you need both scan context AND vulnerability details
-- Explain your SQL approach before executing
-- Focus on actionable security insights
-- Be concise but thorough
-- If asked about non-security topics, politely redirect to security matters
-
-Question: """
-        
-        full_question = enhanced_guardrails + question
-        
-        # Get response from agent
-        response = agent_executor.run(full_question)
-        
-        # Store in history
-        chat_message = {
-            'id': str(len(chat_history) + 1),
-            'question': question,
-            'response': response,
-            'timestamp': datetime.now().isoformat()
-        }
-        chat_history.append(chat_message)
-        
-        return jsonify({'response': response})
-        
     except Exception as e:
         import traceback
         error_msg = f"Error processing chat request: {str(e)}"
         stack_trace = traceback.format_exc()
         print(f"Chat Error: {error_msg}")
         print(f"Stack trace: {stack_trace}")
-        
+
         # Return more specific error information in development
         return jsonify({
             'error': 'Internal server error',
             'message': str(e),
             'details': 'Check server logs for more information'
         }), 500
+
+
+@app.route('/api/chat/stream', methods=['POST'])
+@require_auth(roles=['admin', 'user'])
+def chat_stream():
+    """
+    Handle chat messages with Server-Sent Events streaming.
+
+    Emits JSON events:
+        {"type": "step",  "tool": "<tool_name>"}   - agent invoked a tool
+        {"type": "token", "content": "<text>"}     - streamed answer token
+        {"type": "done",  "response": "<full>"}    - final complete answer
+        {"type": "error", "message": "<reason>"}   - failure occurred
+    """
+    data = request.get_json()
+    question = (data.get('question') or '').strip() if data else ''
+
+    if not question:
+        return jsonify({'error': 'Question is required'}), 400
+
+    if not agent_executor:
+        return jsonify({'error': 'AI agent not available'}), 503
+
+    user_id = g.current_user.get('user_id')
+
+    def generate():
+        loop = asyncio.new_event_loop()
+        final_response = ''
+        try:
+            agen = stream_agent_events(agent_executor, question)
+            try:
+                while True:
+                    event = loop.run_until_complete(agen.__anext__())
+                    if event.get('type') == 'done':
+                        final_response = event.get('response', '')
+                    yield f"data: {json.dumps(event)}\n\n"
+            except StopAsyncIteration:
+                pass
+            finally:
+                loop.run_until_complete(agen.aclose())
+
+            if final_response:
+                save_chat_message(user_id, question, final_response)
+        except Exception as e:
+            print(f"Chat stream error: {e}")
+            try:
+                payload = json.dumps({'type': 'error', 'message': str(e)})
+                yield f"data: {payload}\n\n"
+            except Exception:
+                pass
+        finally:
+            loop.close()
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'X-Accel-Buffering': 'no',
+            'Connection': 'keep-alive',
+        },
+    )
+
+
+
+@app.route('/api/chat/history', methods=['DELETE'])
+@require_auth(roles=['admin', 'user'])
+def clear_chat_history():
+    """Clear the current user's chat history"""
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        conn.execute(
+            "DELETE FROM chat_history WHERE user_id = ?",
+            (g.current_user.get('user_id'),)
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'Chat history cleared'})
+    except Exception as e:
+        print(f"Error clearing chat history: {e}")
+        return jsonify({'error': 'Failed to clear chat history'}), 500
+
+
 
 @app.route('/api/stats/vulnerabilities', methods=['GET'])
 def get_vulnerability_stats():
@@ -1898,14 +1864,36 @@ def get_cve_details(cve_id):
         print(f"Error getting CVE details: {e}")
         return jsonify({'error': 'Failed to retrieve CVE details'}), 500
 
-if __name__ == '__main__':
-    print("Starting ChatCVE API Backend...")
+# =============================================================================
+# Startup Initialization
+# =============================================================================
+# Runs at import time so the app is fully initialized under both
+# `python flask_backend.py` and gunicorn (which imports the module
+# without executing __main__). Safe to call multiple times.
 
-    # Initialize the AI agent
+_bootstrap_done = False
+
+
+def bootstrap_app():
+    """Initialize AI agent and database tables."""
+    global _bootstrap_done
+    if _bootstrap_done:
+        return
+    _bootstrap_done = True
+
     agent_initialized = initialize_agent()
-
     if not agent_initialized:
         print("Running without AI capabilities")
+
+    init_chat_history_table()
+    init_user_preferences_table()
+
+
+bootstrap_app()
+
+
+if __name__ == '__main__':
+    print("Starting ChatCVE API Backend...")
 
     # Check database connection
     conn = get_db_connection()
@@ -1915,8 +1903,5 @@ if __name__ == '__main__':
     else:
         print(f"Warning: Could not connect to database: {DATABASE_PATH}")
 
-    # Initialize user preferences table
-    init_user_preferences_table()
-    
     print("API Backend ready!")
     app.run(host='0.0.0.0', port=5000, debug=True)
