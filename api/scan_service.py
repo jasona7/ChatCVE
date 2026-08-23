@@ -121,8 +121,8 @@ class RegistryBasedScanner:
             logger.error(f"Failed to initialize database: {e}")
     
     def _check_dependencies(self):
-        """Check if Docker, Syft and Grype are installed and get versions"""
-        required_tools = ['docker', 'syft', 'grype']
+        """Check if Syft and Grype are installed and get versions"""
+        required_tools = ['syft', 'grype']
         missing_tools = []
         tool_versions = {}
         
@@ -263,7 +263,7 @@ class RegistryBasedScanner:
         return True
     
     async def _scan_single_image(self, scan_id: str, image_ref: str, temp_dir: str) -> Dict:
-        """Scan a single container image using Docker pull"""
+        """Scan a single container image directly from its registry (no Docker required)"""
         # Clean the image reference (remove whitespace and line endings)
         image_ref = image_ref.strip()
         self._log(scan_id, 'info', f"Cleaned image reference: {repr(image_ref)}")
@@ -274,47 +274,25 @@ class RegistryBasedScanner:
         
         self._log(scan_id, 'info', f"Scanning image: {image_ref}")
         
-        # Ensure we're using the default Docker context
-        context_cmd = ['docker', 'context', 'use', 'default']
-        await self._run_command(scan_id, context_cmd, "Setting Docker context to default")
+        self._log(scan_id, 'info', f"Scanning image: {image_ref}")
         
-        # Pull the Docker image first using sync subprocess (for compatibility)
-        pull_cmd = ['docker', 'pull', image_ref]
-        self._log(scan_id, 'info', f"Running: Pulling Docker image: {image_ref}")
-        self._log(scan_id, 'info', f"Command: {' '.join(pull_cmd)}")
-        
-        try:
-            result = subprocess.run(pull_cmd, capture_output=True, text=True, timeout=120)
-            if result.returncode == 0:
-                self._log(scan_id, 'success', f"Completed: Pulling Docker image: {image_ref}")
-                success, output = True, result.stdout
-            else:
-                self._log(scan_id, 'error', f"Failed: Pulling Docker image: {image_ref}")
-                self._log(scan_id, 'error', f"Return code: {result.returncode}")
-                self._log(scan_id, 'error', f"stderr: {result.stderr}")
-                self._log(scan_id, 'error', f"stdout: {result.stdout}")
-                success, output = False, result.stderr
-        except Exception as e:
-            self._log(scan_id, 'error', f"Exception pulling Docker image: {str(e)}")
-            success, output = False, str(e)
-        
-        if not success:
-            return None
-        
-        # Generate SBOM using Syft with local Docker image
+        # Generate SBOM using Syft directly against the container registry.
+        # The 'registry:' prefix tells Syft to pull manifests/layers from the
+        # remote registry - no local Docker daemon needed.
         sbom_file = os.path.join(temp_dir, f"sbom-{image_ref.replace('/', '-').replace(':', '-')}.json")
         
         syft_cmd = [
-            'syft', 'packages', image_ref,  # Use local Docker image
+            'syft', 'packages', f'registry:{image_ref}',
             '-o', 'json',
             '--file', sbom_file
         ]
         
         success, output = await self._run_command(
-            scan_id, syft_cmd, f"Generating SBOM for {image_ref}"
+            scan_id, syft_cmd, f"Generating SBOM for {image_ref} (from registry)"
         )
         
         if not success:
+            self._log(scan_id, 'error', f"Registry scan failed for {image_ref} - check the image name/tag and registry availability")
             return None
         
         # Check if SBOM file was created and has content
@@ -538,7 +516,7 @@ class RegistryBasedScanner:
                     'scan_duration': scan_duration,
                     'total_packages_scanned': total_packages,
                     'total_vulnerabilities_found': total_vulns,
-                    'scan_status': 'SUCCESS',
+                    'scan_status': 'SUCCESS' if scan_results else 'FAILED',
                     'risk_score': risk_score,
                     'critical_count': severity_totals['critical'],
                     'high_count': severity_totals['high'],
@@ -617,7 +595,7 @@ class RegistryBasedScanner:
                 metadata.get('scan_type', 'FULL'),
                 metadata.get('syft_version', 'unknown'),
                 metadata.get('grype_version', 'unknown'),
-                metadata.get('scan_engine', 'DOCKER_PULL'),
+                metadata.get('scan_engine', 'REGISTRY_API'),
                 metadata.get('scan_source', 'FILE_UPLOAD'),
                 metadata.get('risk_score', 0.0),
                 metadata.get('critical_count', 0),
