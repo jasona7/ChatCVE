@@ -156,3 +156,4 @@ scan.log
 *.backup
 *.old
 .env
+frontend-next/tsconfig.tsbuildinfo
