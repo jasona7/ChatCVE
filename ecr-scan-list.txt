@@ -1,0 +1,17 @@
+# Public ECR (AWS) images verified scannable on 2026-08-23
+# One image per line - upload this file in ChatCVE > Scans > New Scan
+#
+# --- Docker Official Images mirror on ECR Public ---
+public.ecr.aws/docker/library/alpine:3.19
+public.ecr.aws/docker/library/nginx:1.27-alpine
+public.ecr.aws/docker/library/redis:7-alpine
+public.ecr.aws/docker/library/postgres:16-alpine
+public.ecr.aws/docker/library/python:3.12-slim
+public.ecr.aws/docker/library/ubuntu:22.04
+public.ecr.aws/docker/library/node:20-alpine
+public.ecr.aws/docker/library/debian:bookworm-slim
+public.ecr.aws/docker/library/httpd:alpine
+#
+# --- AWS-native images ---
+public.ecr.aws/amazonlinux/amazonlinux:2023
+public.ecr.aws/cloudwatch-agent/cloudwatch-agent:latest
