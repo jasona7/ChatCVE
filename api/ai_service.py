@@ -292,6 +292,7 @@ async def stream_agent_events(agent_executor, question: str):
     Uses LangChain's astream_events v2 API.
     """
     final_state = None
+    streamed = ''
     async for event in agent_executor.astream_events(
         {'input': question}, version='v2'
     ):
@@ -306,14 +307,22 @@ async def stream_agent_events(agent_executor, question: str):
             # Tool-calling models emit dict/list content for tool_use
             # blocks; only stream human-readable string content.
             if isinstance(content, str) and content:
+                streamed += content
                 yield {'type': 'token', 'content': content}
 
         elif kind == 'on_chain_end' and event.get('name') == 'AgentExecutor':
             final_state = event['data'].get('output')
 
+    # Prefer the executor's final output; fall back to the accumulated
+    # stream (some agent/tool-calling combinations emit an AgentExecutor
+    # end event without a usable output payload).
     response_text = ''
     if isinstance(final_state, dict):
         output = final_state.get('output', '')
         response_text = output if isinstance(output, str) else str(output)
+    elif isinstance(final_state, str):
+        response_text = final_state
+    if not response_text.strip():
+        response_text = streamed
     yield {'type': 'done', 'response': response_text}
 
