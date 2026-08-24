@@ -25,9 +25,9 @@ if ! command -v npm &> /dev/null; then
     exit 1
 fi
 
-if [ ! -d ".env" ]; then
+if [ ! -d ".venv" ]; then
     echo "❌ Python virtual environment not found."
-    echo "   Run: python3 -m venv .env && source .env/bin/activate && pip install -r requirements.txt"
+    echo "   Run: python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt"
     exit 1
 fi
 
@@ -62,7 +62,7 @@ trap cleanup SIGINT SIGTERM
 
 echo "📡 Starting Flask API backend..."
 # Activate virtual environment
-source .env/bin/activate
+source .venv/bin/activate
 cd api
 python3 flask_backend.py &
 FLASK_PID=$!

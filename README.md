@@ -2,7 +2,7 @@
 
 ![ChatCVE Dashboard](https://img.shields.io/badge/Status-Active-green) ![Python](https://img.shields.io/badge/Python-3.10+-blue) ![Next.js](https://img.shields.io/badge/Next.js-14-black) ![License](https://img.shields.io/badge/License-MIT-yellow) ![Tests](https://img.shields.io/badge/Tests-pytest%20%7C%20Vitest-brightgreen) ![CI/CD](https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-blue)
 
-ChatCVE is a open 'Work in Progress' AI-powered DevSecOps platform that helps security teams triage, analyze, and manage vulnerabilities across their infrastructure. Built with enterprise grade Flask and powered by Langchain AI, it provides intelligent vulnerability analysis, automated scanning, and intuitive dashboards for security operations.
+ChatCVE is an open-source AI-powered DevSecOps platform that helps security teams triage, analyze, and manage container image vulnerabilities. It scans images directly from container registries with Syft + Grype, and ships a streaming AI security analyst — powered by your choice of LLM (OpenAI, Azure OpenAI, Anthropic, Bedrock, Gemini, or local models via Ollama) — that answers questions about your scan data in plain English.
 
 ## 📊 Dashboard Overview
 
@@ -13,7 +13,8 @@ ChatCVE is a open 'Work in Progress' AI-powered DevSecOps platform that helps se
 ## 🚀 Features
 
 ### 🎯 **Core Capabilities**
-- **AI-Powered Chat Interface** - Natural language queries for vulnerability analysis with clear chat functionality
+- **Streaming AI Security Analyst** - Natural-language queries over your scan data with real-time token streaming, live agent step indicators, and Markdown/table rendering
+- **Bring Your Own LLM** - OpenAI, Azure OpenAI, Anthropic, AWS Bedrock, Google Gemini, or fully offline via Ollama
 - **Interactive Dashboard** - Real-time security metrics with auto-refresh and accurate vulnerability statistics
 - **CVE Explorer** - Searchable database with filtering and sorting
 - **Advanced Scan Management** - Container image scanning with real-time progress and live logs
@@ -21,11 +22,11 @@ ChatCVE is a open 'Work in Progress' AI-powered DevSecOps platform that helps se
 - **External Integrations** - GitHub Advisory Database and NVD API support
 
 ### 🛡️ **Security Features**
-- **Docker-Based Scanning** - Uses Docker to pull and analyze container images
+- **Registry-Direct Scanning** - Scans images straight from Docker Hub, ECR Public, GCR and other registries — no local Docker required
 - **SBOM Generation** - Software Bill of Materials using Syft
-- **Vulnerability Scanning** - Container and repository analysis with Grype
-- **Multi-Source Input** - Support for container images, Git repositories, and text files with image references
-- **Risk Assessment** - CVSS scoring and severity classification with intelligent security scoring
+- **Vulnerability Scanning** - CVE matching with Grype against the latest advisory feeds
+- **Multi-Source Input** - Type image references or upload text files with one image per line
+- **Risk Assessment** - CVSS scoring, severity classification, and weighted security scoring
 - **Compliance Tracking** - Audit trails and historical scan data with persistent storage
 - **Bulk Operations** - Multi-scan deletion and export capabilities
 
@@ -86,27 +87,29 @@ JWT_SECRET_KEY=your-secure-random-string-here
 JWT_EXPIRATION_HOURS=24  # Token expiration (default: 24 hours)
 ```
 
-## 🧠 **AI Chat Experience Improvements** *(Latest Release)*
+## 🧠 **AI Security Analyst**
 
-We've significantly enhanced our AI-powered chat system with two major improvements:
+ChatCVE's chat is backed by a **tool-calling SQL agent** (LangChain) that answers
+questions by querying your scan database directly — then explains the results with
+actionable security guidance.
 
-### 🎯 **Dynamic Few-Shot Prompting**
-- **Smart Context Detection**: AI automatically detects question types (scans, vulnerabilities, performance)
-- **Contextual Examples**: Provides relevant SQL examples based on your specific query
-- **Better Scan Metadata Handling**: Improved understanding of scan names, timestamps, and metadata relationships
+### How It Works
+- **Read-only by design** — the agent connects through SQLite's `PRAGMA query_only`,
+  so it physically cannot modify data, regardless of what it's asked
+- **Scoped access** — only `scan_metadata` and `app_patrol` tables are exposed;
+  user credentials and preferences are invisible to the agent
+- **Real-time streaming** — responses stream over Server-Sent Events while live
+  step indicators show which tool the agent is running
+- **Rich rendering** — Markdown output with styled tables and SQL code blocks
+- **Persistent history** — conversations are stored per-user in SQLite and survive restarts
 
-### 🔍 **Enhanced Database Schema Awareness**
-- **Comprehensive Schema Context**: AI receives detailed database structure information
-- **Query Intent Analysis**: Automatically determines optimal table selection and join strategies
-- **Smart Table Selection**: Distinguishes between scan-level queries (`scan_metadata`) and vulnerability details (`app_patrol`)
-
-### 📈 **Measurable Improvements**
-- **40% Better Query Accuracy**: More precise SQL generation for complex scan metadata queries
-- **Enhanced Security Insights**: AI provides more actionable vulnerability analysis
-- **Reduced Query Errors**: Better understanding of table relationships and data types
-- **Faster Response Times**: Optimized query strategies based on intent analysis
-
-*These improvements leverage the latest Langchain best practices and provide significantly better responses for scan metadata queries that were previously challenging.*
+### Example Questions
+```
+How many critical vulnerabilities do we have?
+Which image has the most high-severity CVEs?
+Show me the top 5 most vulnerable packages.
+What should I patch first?
+```
 
 ## 📋 Prerequisites
 
@@ -122,10 +125,8 @@ Before running ChatCVE, ensure you have the following installed on your system:
 - **npm** package manager
 
 ### 🐳 **Docker Requirements**
-- **Docker Engine** (required for container image scanning)
-- **Docker Compose** (for containerized deployment)
-- **Docker daemon** must be running
-- **User permissions** to run Docker commands
+- **Docker + Docker Compose** — only needed for the containerized deployment option
+- **NOT required for scanning** — Syft and Grype query container registries directly
 
 ### 🔧 **System Dependencies**
 ```bash
@@ -188,13 +189,16 @@ cd ChatCVE
 ### 2️⃣ **Set Up Python Virtual Environment**
 ```bash
 # Create virtual environment
-python3 -m venv .env
+python3 -m venv .venv
 
 # Activate virtual environment
-source .env/bin/activate  # Linux/macOS
+source .venv/bin/activate   # Linux/macOS
 # or
-.env\Scripts\activate     # Windows
+.venv\Scripts\activate      # Windows
 ```
+
+> **Note:** Keep the virtualenv name distinct from your `.env` config file.
+> Copy `.env.example` to `.env` and add your AI provider credentials there.
 
 ### 3️⃣ **Install Python Dependencies**
 ```bash
